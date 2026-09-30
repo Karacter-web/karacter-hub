@@ -132,7 +132,7 @@ export default function PreviewPanel() {
     let devProcess: Process | null = null;
 
     try {
-      appendTerminal('🔧 Booting WebContainer...');
+      appendTerminal('🔧 Booting WebContainer...\n');
 ');
 
       // Dynamic import of WebContainer
@@ -145,8 +145,7 @@ export default function PreviewPanel() {
       }
 
       setWebcontainerInstance(wc);
-      appendTerminal('✅ WebContainer initialized
-');
+      appendTerminal('✅ WebContainer initialized\n');
 
       // Flatten and mount all files
       const files = flattenFileTree(fileTree);
