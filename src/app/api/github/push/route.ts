@@ -70,8 +70,8 @@ function flattenFileTree(nodes: FileNode[], prefix = ''): Map<string, string> {
 /**
  * Convert file map to Git tree entries format
  */
-function filesToTreeEntries(files: Map<string, string>): Array<{ path: string; type: 'blob'; mode: string; content: string }> {
-  const entries: Array<{ path: string; type: string; mode: string; content?: string }> = [];
+function filesToTreeEntries(files: Map<string, string>): Array<{ path: string; type: 'blob'; mode: '100644'; content: string }> {
+  const entries: Array<{ path: string; type: 'blob'; mode: '100644'; content: string }> = [];
   
   files.forEach((content, path) => {
     // Skip empty directories
@@ -142,7 +142,12 @@ async function createTree(
   owner: string,
   repo: string,
   baseTreeSha: string | null,
-  treeEntries: Array<{ path: string; type: string; mode: string; sha?: string }>
+  treeEntries: Array<{
+    path: string;
+    type: 'blob' | 'commit' | 'tree';
+    mode: '100644' | '100755' | '040000' | '160000' | '120000';
+    sha?: string;
+  }>
 ): Promise<string> {
   try {
     const { data } = await octokit.request('POST /repos/{owner}/{repo}/git/trees', {

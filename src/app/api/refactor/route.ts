@@ -239,21 +239,10 @@ Do NOT add any explanations or comments outside the JSON.
       system: REFACTOR_SYSTEM_PROMPT,
       prompt: userMessage,
       temperature: 0.2, // Lower temperature for more precise refactoring
-      maxTokens: 16000,
+      maxOutputTokens: 16000,
     });
 
-    // Create a transform stream that prepends metadata
-    const transformStream = new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        // We could add metadata here, but for now just pass through
-        controller.enqueue(chunk);
-      },
-    });
-
-    // Pipe through transform and return
-    const stream = result.toTextStream().pipeThrough(transformStream);
-
-    return new NextResponse(stream, {
+    return result.toTextStreamResponse({
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',

@@ -94,7 +94,7 @@ For a "Todo app with TypeScript and Tailwind":
   "files": [
     {
       "path": "package.json",
-      "content": "{\"name\": \"todo-app\", \"version\": \"1.0.0\", ...}",
+      "content": "full file content",
       "language": "json"
     },
     {
@@ -152,14 +152,11 @@ export async function POST(request: Request) {
       prompt: `User prompt: ${prompt}\n\nGenerate the complete application files as JSON.`,
       // Configuration for better JSON output
       temperature: 0.3,
-      maxTokens: 16000,
+      maxOutputTokens: 16000,
     });
 
-    // Transform the stream to include metadata for the client
-    // The client can parse the JSON and populate the file tree
-    const stream = result.toTextStream();
-
-    return new NextResponse(stream, {
+    // The client parses the streamed JSON and populates the file tree.
+    return result.toTextStreamResponse({
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',

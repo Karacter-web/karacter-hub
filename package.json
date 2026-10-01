@@ -11,10 +11,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/mistral": "^0.0.40",
+    "@ai-sdk/mistral": "^2.0.0",
     "@octokit/rest": "^22.0.1",
     "@webcontainer/api": "^1.6.4",
-    "ai": "^7.0.69",
+    "ai": "^6.0.0",
     "next": "14.2.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -22,9 +22,10 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@types/node": "^22.7.9",
+    "@types/node": "^20.17.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "autoprefixer": "^10.5.4",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.15",
@@ -33,6 +34,6 @@
     "typescript": "^5.6.3"
   },
   "engines": {
-    "node": ">=18.17.0"
+    "node": "20.x"
   }
 }

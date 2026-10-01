@@ -22,7 +22,7 @@ Karacter Hub is an AI-powered platform that transforms natural language descript
 
 ### Prerequisites
 
-- Node.js 18.17.0 or later
+- Node.js 20.x
 - npm or yarn
 - A **Mistral AI API key** (recommended for development)
 
@@ -145,6 +145,10 @@ karacter/
 
 ## Configuration
 
+See [PREVIEW_DEPLOYMENT.md](PREVIEW_DEPLOYMENT.md) for the current WebContainer
+preview model, deployment requirements, and the recommended path to custom
+preview domains.
+
 ### Environment Variables
 
 Create a `.env.local` file in the root directory:
@@ -232,7 +236,7 @@ Currently configured:
 - **Language**: TypeScript 5
 - **State Management**: Zustand
 - **Styling**: Tailwind CSS v4
-- **AI Integration**: Vercel AI SDK
+- **AI Integration**: AI SDK
 - **Code Execution**: @webcontainer/api
 - **GitHub Integration**: @octokit/rest
 - **AI Providers**: Mistral (primary), extensible to others
@@ -257,4 +261,4 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ## Acknowledgments
 
 - Inspired by [lovable.dev](https://lovable.dev) and [bolt.new](https://bolt.new)
-- Built with [Next.js](https://nextjs.org), [Vercel AI SDK](https://sdk.vercel.ai), and [WebContainer](https://webcontainer.io)
+- Built with [Next.js](https://nextjs.org), [AI SDK](https://ai-sdk.dev), and [WebContainer](https://webcontainer.io)

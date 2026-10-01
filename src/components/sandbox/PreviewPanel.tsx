@@ -1,28 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { WebContainer } from '@webcontainer/api';
 import { useFileTree, useProject, useGenerationLogs, type FileNode } from '@/store/useAppStore';
 
-// Type for WebContainer instance (from @webcontainer/api)
-type WebContainerInstance = {
-  fs: {
-    writeFile: (path: string, content: string) => Promise<void>;
-    mkdir: (path: string, options?: { recursive: boolean }) => Promise<void>;
-    readFile: (path: string, encoding: string) => Promise<string>;
-  };
-  spawn: (command: string, args: string[]) => Promise<Process>;
-  url: string | null;
-  teardown: () => Promise<void>;
-};
-
-type Process = {
-  output: ReadableStream<Uint8Array>;
-  exit: Promise<number>;
-  kill: () => Promise<void>;
-};
-
-// Text decoder for handling stream chunks
-const decoder = new TextDecoder();
+type WebContainerInstance = WebContainer;
+type Process = Awaited<ReturnType<WebContainer['spawn']>>;
 
 /**
  * PreviewPanel Component
@@ -40,7 +23,7 @@ export default function PreviewPanel() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isServerReady, setIsServerReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [port, setPort] = useState<number>(3000);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const devProcessRef = useRef<Process | null>(null);
@@ -116,9 +99,9 @@ export default function PreviewPanel() {
    * Create a writable stream that appends to terminal
    */
   const createTerminalStream = useCallback(() => {
-    return new WritableStream<Uint8Array>({
+    return new WritableStream<string>({
       write(chunk) {
-        appendTerminal(decoder.decode(chunk));
+        appendTerminal(chunk);
       },
     });
   }, [appendTerminal]);
@@ -133,7 +116,6 @@ export default function PreviewPanel() {
 
     try {
       appendTerminal('🔧 Booting WebContainer...\n');
-');
 
       // Dynamic import of WebContainer
       const { WebContainer } = await import('@webcontainer/api');
@@ -145,6 +127,14 @@ export default function PreviewPanel() {
       }
 
       setWebcontainerInstance(wc);
+      wc.on('server-ready', (_port, url) => {
+        setPreviewUrl(url);
+        setIsServerReady(true);
+        if (iframeRef.current) {
+          iframeRef.current.src = url;
+        }
+        appendTerminal(`✅ Server running at ${url}\n`);
+      });
       appendTerminal('✅ WebContainer initialized\n');
 
       // Flatten and mount all files
@@ -160,7 +150,6 @@ export default function PreviewPanel() {
       // Check for package.json and extract dev script
       let pkgJson: { name?: string; scripts?: { dev?: string } } = {};
       let devCommand = 'npx http-server . -p 3000';
-      let devPort = 3000;
 
       try {
         const pkgContent = await wc.fs.readFile('package.json', 'utf-8');
@@ -168,18 +157,9 @@ export default function PreviewPanel() {
         
         if (pkgJson.scripts?.dev) {
           devCommand = pkgJson.scripts.dev;
-          // Try to extract port from dev command
-          const portMatch = devCommand.match(/(-p\s+|--port\s+|:)\d+/);
-          if (portMatch) {
-            const portStr = portMatch[0].match(/\d+/)?.[0];
-            if (portStr) {
-              devPort = parseInt(portStr);
-            }
-          }
         }
       } catch (e) {
-        appendTerminal('⚠️ No package.json found, using default dev server
-');
+        appendTerminal('⚠️ No package.json found, using default dev server\n');
         // Create minimal package.json
         const defaultPkg = {
           name: project.name || 'karacter-app',
@@ -192,16 +172,12 @@ export default function PreviewPanel() {
         pkgJson = defaultPkg;
       }
 
-      setPort(devPort);
-
       // Install dependencies
-      appendTerminal('📦 Installing dependencies (this may take a moment)...
-');
+      appendTerminal('📦 Installing dependencies (this may take a moment)...\n');
       const installProcess = await wc.spawn('npm', ['install']);
       await installProcess.output.pipeTo(createTerminalStream());
       await installProcess.exit;
-      appendTerminal('✅ Dependencies installed
-');
+      appendTerminal('✅ Dependencies installed\n');
 
       // Parse dev command and start server
       const devArgs = devCommand.split(' ');
@@ -216,44 +192,7 @@ export default function PreviewPanel() {
       // Pipe dev server output to terminal
       const devOutputStream = createTerminalStream();
       
-      // Also check for server ready signals
-      const outputReader = devProcess.output.getReader();
-      
-      // Read output in a separate loop to detect server readiness
-      const readOutput = async () => {
-        while (true) {
-          const { done, value } = await outputReader.read();
-          if (done) break;
-          
-          const text = decoder.decode(value);
-          appendTerminal(text);
-          
-          // Detect server ready patterns
-          const readyPatterns = [
-            'Local:',
-            'ready started',
-            'Compiled successfully',
-            'server ready',
-            'Listening on',
-            'started server',
-            'Ready in',
-          ];
-          
-          const isReady = readyPatterns.some(pattern => text.includes(pattern));
-          if (isReady && wc.url && iframeRef.current && !isServerReady) {
-            setIsServerReady(true);
-            iframeRef.current.src = wc.url;
-            appendTerminal(`✅ Server running at ${wc.url}\n`);
-          }
-        }
-      };
-      
-      // Start reading output
-      readOutput().catch(err => {
-        console.error('Error reading output:', err);
-      });
-
-      // Also pipe to terminal stream for display
+      // Forward server output to the terminal once.
       devProcess.output.pipeTo(devOutputStream).catch(() => {});
 
       setIsLoading(false);
@@ -269,10 +208,10 @@ export default function PreviewPanel() {
       
       // Cleanup on error
       if (devProcess) {
-        await devProcess.kill().catch(() => {});
+        devProcess.kill();
       }
       if (wc) {
-        await wc.teardown().catch(() => {});
+        wc.teardown();
       }
     }
 
@@ -280,10 +219,10 @@ export default function PreviewPanel() {
       isMounted = false;
       // Cleanup
       if (devProcess) {
-        devProcess.kill().catch(() => {});
+        devProcess.kill();
       }
       if (wc) {
-        wc.teardown().catch(() => {});
+        wc.teardown();
       }
     };
   }, [fileTree, project.name, appendTerminal, clearTerminal, flattenFileTree, mountFiles, createTerminalStream]);
@@ -293,12 +232,13 @@ export default function PreviewPanel() {
    */
   const restartContainer = useCallback(async () => {
     if (devProcessRef.current) {
-      await devProcessRef.current.kill().catch(() => {});
+      devProcessRef.current.kill();
     }
     if (webcontainerInstance) {
-      await webcontainerInstance.teardown().catch(() => {});
+      webcontainerInstance.teardown();
       setWebcontainerInstance(null);
       setIsServerReady(false);
+      setPreviewUrl(null);
       setTerminalOutput('');
       setIsLoading(true);
     }
@@ -322,10 +262,10 @@ export default function PreviewPanel() {
   useEffect(() => {
     return () => {
       if (devProcessRef.current) {
-        devProcessRef.current.kill().catch(() => {});
+        devProcessRef.current.kill();
       }
       if (webcontainerInstance) {
-        webcontainerInstance.teardown().catch(() => {});
+        webcontainerInstance.teardown();
       }
     };
   }, [webcontainerInstance]);
@@ -367,7 +307,7 @@ export default function PreviewPanel() {
           )}
           {isServerReady && (
             <a
-              href={webcontainerInstance?.url || ''}
+              href={previewUrl || ''}
               target="_blank"
               rel="noopener noreferrer"
               className="text-green-400 hover:text-green-300 hover:underline"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, type KeyboardEvent } from 'react';
 import { useAppStore, useProject, useFileTree, useSetFileTree, useGenerationLogs, type FileNode, type GenerationLog } from '@/store/useAppStore';
 import PreviewPanel from '@/components/sandbox/PreviewPanel';
 import RefactorChat from '@/components/chat/RefactorChat';
@@ -277,7 +277,7 @@ export default function HomePage() {
   }, []);
 
   // Handle key down
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && !isGenerating) {
       e.preventDefault();
       handleGenerate();

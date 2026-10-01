@@ -284,6 +284,7 @@ export const useProjectName = () => useAppStore(state => state.project.name);
 
 // File tree selectors
 export const useFileTree = () => useAppStore(state => state.fileTree);
+export const useSetFileTree = () => useAppStore(state => state.setFileTree);
 export const useFileByPath = (path: string) =>
   useAppStore(state => findFileNode(state.fileTree, path));
 export const useFileContent = (path: string) =>

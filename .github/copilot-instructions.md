@@ -5,7 +5,7 @@ You are assisting in building "Karacter Hub," an AI app builder and personal wor
 ## Key Technical Stack
 - **Frontend / Framework:** Next.js (App Router), React, Tailwind CSS, TypeScript, Shadcn UI
 - **Code Execution / Preview Sandbox:** `@webcontainer/api` (StackBlitz WebContainers) or Docker-based server sandbox via API.
-- **LLM / Code Generation:** Vercel AI SDK (`ai` / `@ai-sdk/openai` or Anthropic), generating structured JSON file-trees or multi-file system streams.
+- **LLM / Code Generation:** AI SDK (`ai` / `@ai-sdk/openai` or Anthropic), generating structured JSON file-trees or multi-file system streams.
 - **Git Sync:** Octokit (`@octokit/rest`) for authenticating users and committing code directly to GitHub repositories.
 - **State & Storage:** Zustand / React Query, Prisma ORM with PostgreSQL (or Supabase/Firebase) for storing user sessions and app history.
 

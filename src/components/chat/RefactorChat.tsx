@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
 import { useFileTree, useProject, useAppStore, type FileNode } from '@/store/useAppStore';
 
 // ============================================================================
@@ -132,7 +132,8 @@ function applyOperations(
   
   // Add new files that don't exist yet
   for (const op of operations) {
-    if ((op.type === 'create' || op.type === 'modify') && op.content) {
+    const content = op.content;
+    if ((op.type === 'create' || op.type === 'modify') && content) {
       const existing = fileMap.get(op.path);
       if (!existing) {
         // Add to appropriate directory
@@ -150,7 +151,7 @@ function applyOperations(
                   ...node,
                   children: [
                     ...(node.children || []),
-                    { path: filename, content: op.content, status: 'generating', isDirectory: false }
+                    { path: filename, content, status: 'generating', isDirectory: false }
                   ]
                 };
               }
@@ -163,7 +164,7 @@ function applyOperations(
           newTree = addToDir(newTree);
         } else {
           // Root level
-          newTree.push({ path: filename, content: op.content, status: 'generating', isDirectory: false });
+          newTree.push({ path: filename, content, status: 'generating', isDirectory: false });
         }
       }
     }
@@ -485,7 +486,7 @@ export default function RefactorChat() {
   }, []);
 
   // Handle key down
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
