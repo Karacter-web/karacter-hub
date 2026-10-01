@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { WebContainer } from '@webcontainer/api';
+import { ExternalLink, LoaderCircle, RotateCw, Terminal, Trash2 } from 'lucide-react';
 import { useFileTree, useProject, useGenerationLogs, type FileNode } from '@/store/useAppStore';
 
 type WebContainerInstance = WebContainer;
@@ -225,7 +226,7 @@ export default function PreviewPanel() {
         wc.teardown();
       }
     };
-  }, [fileTree, project.name, appendTerminal, clearTerminal, flattenFileTree, mountFiles, createTerminalStream]);
+  }, [fileTree, project.name, appendTerminal, flattenFileTree, mountFiles, createTerminalStream]);
 
   /**
    * Re-initialize the container (e.g., after code changes)
@@ -273,17 +274,17 @@ export default function PreviewPanel() {
   // Error state
   if (error) {
     return (
-      <div className="flex flex-col h-full bg-gray-900 text-white">
-        <div className="flex items-center justify-between p-3 border-b border-gray-700 bg-red-900/30">
+      <div className="flex h-full flex-col bg-surface-inverse text-white">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#321e1b] p-3">
           <h2 className="text-sm font-medium">Preview Error</h2>
           <button
             onClick={restartContainer}
-            className="text-xs bg-red-600 hover:bg-red-700 px-2 py-1 rounded"
+            className="rounded-md bg-[#a74f41] px-3 py-1.5 text-xs font-medium hover:bg-[#bd5d4d]"
           >
             Retry
           </button>
         </div>
-        <pre className="flex-1 overflow-auto bg-gray-800 p-4 text-sm font-mono">
+        <pre className="flex-1 overflow-auto bg-[#172622] p-4 font-mono text-sm">
           {error}
         </pre>
       </div>
@@ -291,17 +292,17 @@ export default function PreviewPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white" ref={containerRef}>
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-[#111d1a] text-[#e8f0eb]" ref={containerRef}>
       {/* Header */}
-      <div className="flex items-center justify-between p-2 border-b border-gray-700 bg-gray-800">
-        <h2 className="text-sm font-medium flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${isServerReady ? 'bg-green-500' : isLoading ? 'bg-yellow-500 animate-pulse' : 'bg-gray-500'}`}></span>
+      <div className="flex items-center justify-between border-b border-white/10 bg-[#172622] px-3 py-2.5">
+        <h2 className="flex items-center gap-2 text-xs font-medium">
+          <span className={`size-1.5 rounded-full ${isServerReady ? 'bg-[#8ddc84]' : isLoading ? 'animate-pulse bg-[#e7bb62]' : 'bg-white/30'}`}></span>
           Live Preview
         </h2>
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-[11px]">
           {isLoading && (
-            <span className="text-blue-400">
-              <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full mr-1"></span>
+            <span className="flex items-center gap-1.5 text-[#a7d8c1]">
+              <LoaderCircle size={13} className="animate-spin" />
               Loading...
             </span>
           )}
@@ -310,60 +311,63 @@ export default function PreviewPanel() {
               href={previewUrl || ''}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-green-400 hover:text-green-300 hover:underline"
+              className="flex items-center gap-1 text-[#b7e690] hover:text-white"
             >
-              Open in new tab
+              Open preview <ExternalLink size={12} />
             </a>
           )}
           <button
             onClick={clearTerminal}
-            className="text-gray-500 hover:text-white hover:bg-gray-700 px-2 py-1 rounded"
+            className="grid size-7 place-items-center rounded-md text-white/50 transition-colors hover:bg-white/10 hover:text-white"
             title="Clear terminal"
+            aria-label="Clear terminal"
           >
-            🗑️
+            <Trash2 size={14} />
           </button>
           <button
             onClick={restartContainer}
-            className="text-gray-500 hover:text-white hover:bg-gray-700 px-2 py-1 rounded"
+            className="grid size-7 place-items-center rounded-md text-white/50 transition-colors hover:bg-white/10 hover:text-white"
             title="Restart container"
+            aria-label="Restart container"
           >
-            🔄
+            <RotateCw size={14} />
           </button>
         </div>
       </div>
 
       {/* Terminal Output */}
-      <div className="border-b border-gray-700">
-        <div className="bg-gray-800 px-2 py-1 text-xs text-gray-400 flex items-center gap-2">
-          <span>🪟 Terminal</span>
-          <span className="text-gray-500">
+      <div className="border-b border-white/10">
+        <div className="flex items-center gap-2 bg-[#14211e] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-white/45">
+          <Terminal size={12} />
+          <span>Terminal</span>
+          <span className="text-white/30">
             {generationLogs.length > 0 && `(${generationLogs.length} generation${generationLogs.length > 1 ? 's' : ''} active)`}
           </span>
         </div>
-        <div className="h-40 overflow-auto bg-black p-3 text-xs font-mono">
+        <div className="h-36 overflow-auto bg-[#0b1311] p-3 font-mono text-[10px] leading-5 text-[#c2d1c8]">
           <pre className="whitespace-pre-wrap">{terminalOutput || 'Waiting for output...'}</pre>
         </div>
       </div>
 
       {/* Preview Frame */}
-      <div className="flex-1 relative bg-gray-800">
+      <div className="relative min-h-0 flex-1 bg-[#202e29]">
         <iframe
           ref={iframeRef}
-          className="w-full h-full border-none bg-white"
+          className="size-full border-none bg-white"
           sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads"
           title="Live Preview"
         />
         
         {/* Loading Overlay */}
         {isLoading && !isServerReady && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800/90 backdrop-blur-sm z-10">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#172622]/90 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-3">
               <div className="flex gap-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="size-2 animate-bounce rounded-full bg-brand" style={{ animationDelay: '0ms' }}></div>
+                <div className="size-2 animate-bounce rounded-full bg-brand" style={{ animationDelay: '150ms' }}></div>
+                <div className="size-2 animate-bounce rounded-full bg-brand" style={{ animationDelay: '300ms' }}></div>
               </div>
-              <span className="text-gray-300 text-sm">
+              <span className="text-sm text-white/75">
                 {webcontainerInstance ? 'Mounting files...' : 'Initializing WebContainer...'}
               </span>
             </div>
@@ -372,10 +376,10 @@ export default function PreviewPanel() {
         
         {/* Waiting for Server Overlay */}
         {webcontainerInstance && !isServerReady && !isLoading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800/90 backdrop-blur-sm z-10">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#172622]/90 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
-              <span className="text-gray-300 text-sm">Starting development server...</span>
+              <LoaderCircle size={28} className="animate-spin text-brand" />
+              <span className="text-sm text-white/75">Starting development server...</span>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
-# Karacter Hub
+# KaracterHub
 
-> **AI Web App Builder** - Turn your ideas into running web applications
+> **Ideas into working software.** Describe an app, run it live, and refine it in one workspace.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
@@ -8,7 +8,7 @@
 
 ## What is Karacter Hub?
 
-Karacter Hub is an AI-powered platform that transforms natural language descriptions into complete, runnable web applications. It's similar to **lovable.dev** and **bolt.new** but with a focus on developer control and extensibility.
+KaracterHub is an AI-powered workspace that transforms natural language descriptions into complete, runnable web applications, with developer control over the generated files and runtime.
 
 ### Core Features
 
@@ -16,6 +16,7 @@ Karacter Hub is an AI-powered platform that transforms natural language descript
 - **Live Preview**: See your app running instantly in the browser via WebContainer
 - **Iterative Refinement**: Chat with AI to tweak and improve your code
 - **One-Click Deploy**: Push your entire project to GitHub
+- **Persistent Projects**: Save and reopen generated projects from a private browser-session library
 - **Multi-Provider AI**: Support for Mistral, OpenAI, Anthropic, and more
 
 ## Quick Start
@@ -48,14 +49,21 @@ Karacter Hub is an AI-powered platform that transforms natural language descript
    ```
    MISTRAL_API_KEY=your_api_key_here
    NEXT_PUBLIC_AI_MODEL=mistral-large
+  DATABASE_URL=your_neon_pooled_connection_string
    ```
 
-4. Run the development server:
+4. Provision Neon and run the database migration:
+  - Create a Postgres project in the Neon Console.
+  - Copy its pooled connection string into `DATABASE_URL` in `.env.local`.
+  - Run `npm run db:migrate` to create the session and project tables.
+  - Run `npm run db:studio` to inspect the database locally.
+
+5. Run the development server:
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Usage
 
@@ -149,6 +157,9 @@ See [PREVIEW_DEPLOYMENT.md](PREVIEW_DEPLOYMENT.md) for the current WebContainer
 preview model, deployment requirements, and the recommended path to custom
 preview domains.
 
+See [DATABASE.md](DATABASE.md) to provision Neon, configure the pooled
+connection string, and apply Drizzle migrations.
+
 ### Environment Variables
 
 Create a `.env.local` file in the root directory:
@@ -157,6 +168,7 @@ Create a `.env.local` file in the root directory:
 # AI Model Configuration
 NEXT_PUBLIC_AI_MODEL=mistral-large
 MISTRAL_API_KEY=your_mistral_api_key
+DATABASE_URL=your_neon_pooled_connection_string
 
 # GitHub Configuration (for development)
 GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token

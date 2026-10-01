@@ -2,31 +2,35 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // Custom brand colors for Karacter Hub
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
+        canvas: 'var(--canvas)',
+        surface: 'var(--surface)',
+        'surface-soft': 'var(--surface-soft)',
+        'surface-inverse': 'var(--surface-inverse)',
+        ink: 'var(--ink)',
+        'ink-soft': 'var(--ink-soft)',
+        muted: 'var(--muted)',
+        line: 'var(--line)',
+        brand: 'var(--brand)',
+        'brand-deep': 'var(--brand-deep)',
+      },
+      fontFamily: {
+        sans: ['var(--font-space-grotesk)', 'sans-serif'],
+        mono: ['var(--font-ibm-plex-mono)', 'monospace'],
+      },
+      borderRadius: {
+        panel: '14px',
+      },
+      boxShadow: {
+        panel: 'var(--shadow-panel)',
       },
       animation: {
-        'spin-slow': 'spin 3s linear infinite',
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'enter-softly': 'enter-softly 420ms ease-out both',
       },
     },
   },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
+import { Send, Sparkles } from 'lucide-react';
 import { useFileTree, useProject, useAppStore, type FileNode } from '@/store/useAppStore';
 
 // ============================================================================
@@ -494,36 +495,29 @@ export default function RefactorChat() {
   }, [handleSend]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-100 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-surface">
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <h2 className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-          Refactor Chat
+      <div className="flex items-center justify-between border-b border-line bg-surface px-4 py-3">
+        <h2 className="flex items-center gap-2 text-xs font-semibold text-ink">
+          <Sparkles size={14} className="text-brand-deep" />
+          Refine this build
         </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {fileCount} files
-          </span>
-        </div>
+        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">{fileCount} files</span>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-800">
+      <div className="flex-1 space-y-4 overflow-auto bg-canvas p-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 dark:text-gray-400">
-            <div className="mb-4">
-              <svg className="w-12 h-12 mx-auto text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </div>
-            <p className="mb-4">Ask me to refactor your code</p>
+          <div className="flex min-h-full flex-col justify-center py-8 text-center">
+            <p className="mx-auto grid size-10 place-items-center rounded-[11px] bg-mint text-brand-deep"><Sparkles size={18} /></p>
+            <p className="mt-4 text-xs font-semibold text-ink">What should change?</p>
+            <p className="mx-auto mt-1 max-w-[230px] text-[11px] leading-5 text-muted">Ask for a focused improvement. KaracterHub will update the project files.</p>
             <div className="flex flex-wrap gap-2 justify-center">
               {PLACEHOLDER_PROMPTS.map((prompt, index) => (
                 <button
                   key={index}
                   onClick={() => handlePlaceholderClick(prompt)}
-                  className="text-xs px-3 py-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  className="rounded-full border border-line bg-surface px-3 py-1.5 text-[10px] text-ink-soft transition-colors hover:border-line-strong hover:bg-surface-soft"
                 >
                   {prompt}
                 </button>
@@ -539,11 +533,11 @@ export default function RefactorChat() {
           >
             <div
               className={`max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl rounded-lg p-3 ${message.role === 'user' 
-                ? 'bg-blue-500 text-white rounded-br-none' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'}`}
+                ? 'bg-brand-deep text-white rounded-br-none'
+                : 'border border-line bg-surface text-ink rounded-bl-none'}`}
             >
               <p className="whitespace-pre-wrap text-sm">{message.content || '...'}</p>
-              <p className={`text-xs mt-1 text-right ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
+              <p className={`mt-1 text-right text-[9px] ${message.role === 'user' ? 'text-white/60' : 'text-muted'}`}>
                 {message.timestamp.toLocaleTimeString()}
               </p>
             </div>
@@ -552,14 +546,14 @@ export default function RefactorChat() {
 
         {isStreaming && (
           <div className="flex justify-start gap-2">
-            <div className="bg-gray-200 dark:bg-gray-700 rounded-lg p-3 rounded-bl-none">
+            <div className="rounded-lg rounded-bl-none border border-line bg-surface p-3">
               <div className="flex items-center gap-2">
                 <div className="animate-pulse flex gap-1">
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                  <span className="size-1.5 rounded-full bg-brand-deep/40"></span>
+                  <span className="size-1.5 rounded-full bg-brand-deep/40"></span>
+                  <span className="size-1.5 rounded-full bg-brand-deep/40"></span>
                 </div>
-                <span className="text-sm text-gray-600 dark:text-gray-300">Thinking...</span>
+                <span className="text-xs text-muted">Thinking...</span>
               </div>
             </div>
           </div>
@@ -569,7 +563,7 @@ export default function RefactorChat() {
       </div>
 
       {/* Input Area */}
-      <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+      <div className="border-t border-line bg-surface p-3">
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -578,17 +572,16 @@ export default function RefactorChat() {
             onKeyDown={handleKeyDown}
             placeholder={isStreaming ? 'Waiting for response...' : 'Ask me to refactor something...'}
             disabled={isStreaming}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px] max-h-[120px]"
+            className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-[9px] border border-line bg-surface-soft px-3 py-2 text-xs text-ink placeholder:text-muted focus:border-line-strong focus:outline-none"
             rows={1}
           />
           <button
             onClick={handleSend}
             disabled={isStreaming || !input.trim()}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+            className="flex size-10 items-center justify-center rounded-[9px] bg-brand px-3 text-brand-deep transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Send refinement prompt"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            <Send size={16} />
           </button>
         </div>
 
