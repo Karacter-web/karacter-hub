@@ -8,11 +8,6 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   
-  // Enable ESLint
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
-  
   // Experimental features
   experimental: {
     // Enable server actions

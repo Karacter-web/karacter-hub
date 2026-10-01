@@ -90,18 +90,16 @@ to rename it to a Netlify hostname.
 ## Deployment and Security Checks
 
 - `netlify.toml` registers `@netlify/plugin-nextjs` and pins the build runtime
-  to Node 20. The plugin manages its generated publish output; do not hard-code
+   to Node 22. The plugin manages its generated publish output; do not hard-code
   a publish directory that bypasses its output preparation.
 - Set `MISTRAL_API_KEY`, `GITHUB_CLIENT_SECRET`, and other private credentials
   in Netlify's server-side environment settings. Never expose secrets through
   `NEXT_PUBLIC_*` variables or pass them into generated runtimes.
-- The local Netlify build has been validated with Node 20 and the Next.js
-  Runtime plugin. A linked-site deployment, custom domain, and production
-  environment variables still need to be configured and verified in Netlify.
-- Node 20 is pinned here as requested, but it reached upstream end of life in
-  April 2026. Plan to move to a supported Node LTS after confirming the target
-  Netlify runtime and application dependency requirements.
-- `npm audit --omit=dev` reports production vulnerabilities, including a
-  critical advisory affecting the pinned Next.js 14.2.15. Do not treat a green
-  build as a security approval. Resolve this in a deliberate Next.js security
-  upgrade; the audit's automatic fix requires a breaking framework major.
+- The local Next.js production build has been validated. A linked-site
+   deployment, custom domain, OAuth callback URLs, production secrets, and the
+   selected Node 22 runtime still need verification in Netlify.
+- The project now targets Node 22 and Next.js 16.3.8. Re-run deployment checks
+   when changing the Netlify runtime plugin or framework version.
+- `npm audit --omit=dev` reports zero production dependency vulnerabilities at
+   the time of this update. Development dependencies still have advisories and
+   should be reviewed as part of routine dependency maintenance.

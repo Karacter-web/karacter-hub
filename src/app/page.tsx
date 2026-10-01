@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   ArrowRight,
   Check,
@@ -19,6 +20,7 @@ import {
 import { useAppStore, useFileTree, useGenerationLogs, useProject, type FileNode, type GenerationLog } from '@/store/useAppStore';
 import PreviewPanel from '@/components/sandbox/PreviewPanel';
 import RefactorChat from '@/components/chat/RefactorChat';
+import LandingPage from '@/components/marketing/LandingPage';
 
 interface SavedProject {
   id: string;
@@ -84,6 +86,8 @@ function projectRevision(name: string, description: string, fileTree: FileNode[]
 }
 
 export default function HomePage() {
+  const pathname = usePathname();
+  const isWorkspace = pathname === '/app';
   const project = useProject();
   const fileTree = useFileTree();
   const generationLogs = useGenerationLogs();
@@ -124,8 +128,9 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (!isWorkspace) return;
     void refreshLibrary();
-  }, [refreshLibrary]);
+  }, [isWorkspace, refreshLibrary]);
 
   const handleNewProject = useCallback(() => {
     setProject({ id: '', name: 'Untitled project', description: '', gitRepoUrl: undefined });
@@ -282,6 +287,8 @@ export default function HomePage() {
     }
   }, [handleGenerate, isGenerating]);
 
+  if (!isWorkspace) return <LandingPage />;
+
   return (
     <main className="min-h-screen bg-canvas text-ink md:flex">
       {mobileLibraryOpen && (
@@ -349,14 +356,14 @@ export default function HomePage() {
         </nav>
 
         <div className="border-t border-line p-4">
-          <div className="flex items-center gap-3 rounded-[10px] bg-surface-soft p-3">
+          <a href="/app/settings" className="flex items-center gap-3 rounded-[10px] bg-surface-soft p-3 transition hover:bg-[#eef4ef]">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-mint text-[11px] font-semibold text-brand-deep">KH</span>
             <span className="min-w-0">
-              <span className="block text-xs font-medium">Private workspace</span>
-              <span className="mt-0.5 block truncate text-[10px] text-muted">This browser session</span>
+              <span className="block text-xs font-medium">Account settings</span>
+              <span className="mt-0.5 block truncate text-[10px] text-muted">Profile and sign-in options</span>
             </span>
             <span className="ml-auto size-1.5 rounded-full bg-[#59ad70]" aria-label="Workspace active" />
-          </div>
+          </a>
         </div>
       </aside>
 

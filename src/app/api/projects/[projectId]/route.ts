@@ -1,29 +1,43 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { getBrowserSession } from '@/lib/db/browser-session';
 import { getDatabase } from '@/lib/db';
 import { parseProjectInput } from '@/lib/db/project-validation';
 import { projects } from '@/lib/db/schema';
 
 interface RouteContext {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function GET(_request: Request, { params }: RouteContext) {
-  if (!UUID_PATTERN.test(params.projectId)) {
+  const { projectId } = await params;
+  if (!UUID_PATTERN.test(projectId)) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
   try {
+    const user = await auth();
+    if (user?.user?.id) {
+      const [project] = await getDatabase()
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.userId, user.user.id)))
+        .limit(1);
+
+      if (!project) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+      return NextResponse.json({ project });
+    }
+
     const session = await getBrowserSession();
     if (!session) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
 
     const [project] = await getDatabase()
       .select()
       .from(projects)
-      .where(and(eq(projects.id, params.projectId), eq(projects.sessionId, session.id)))
+      .where(and(eq(projects.id, projectId), eq(projects.sessionId, session.id), isNull(projects.userId)))
       .limit(1);
 
     if (!project) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
@@ -35,13 +49,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  if (!UUID_PATTERN.test(params.projectId)) {
+  const { projectId } = await params;
+  if (!UUID_PATTERN.test(projectId)) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
   try {
+    const user = await auth();
+    const owner = user?.user?.id;
     const session = await getBrowserSession();
-    if (!session) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+    if (!owner && !session) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
 
     const input = parseProjectInput(await request.json());
     if (!input) {
@@ -54,7 +71,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
         ...input,
         updatedAt: new Date(),
       })
-      .where(and(eq(projects.id, params.projectId), eq(projects.sessionId, session.id)))
+      .where(owner
+        ? and(eq(projects.id, projectId), eq(projects.userId, owner))
+        : and(eq(projects.id, projectId), eq(projects.sessionId, session!.id), isNull(projects.userId)))
       .returning({
         id: projects.id,
         name: projects.name,

@@ -13,7 +13,7 @@ function hashToken(token: string) {
 }
 
 export async function getBrowserSession() {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
 
   const [session] = await getDatabase()

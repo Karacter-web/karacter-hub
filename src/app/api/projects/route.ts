@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
 import { getDatabase } from '@/lib/db';
-import { getBrowserSession, getOrCreateBrowserSession, setBrowserSessionCookie } from '@/lib/db/browser-session';
+import { getBrowserSession } from '@/lib/db/browser-session';
 import { parseProjectInput } from '@/lib/db/project-validation';
 import { projects } from '@/lib/db/schema';
 
@@ -10,6 +11,22 @@ export async function GET() {
     if (!process.env.DATABASE_URL) {
       return NextResponse.json({ error: 'Project storage is not configured.' }, { status: 503 });
     }
+    const user = await auth();
+    if (user?.user?.id) {
+      const ownedProjects = await getDatabase()
+        .select({
+          id: projects.id,
+          name: projects.name,
+          description: projects.description,
+          updatedAt: projects.updatedAt,
+        })
+        .from(projects)
+        .where(eq(projects.userId, user.user.id))
+        .orderBy(desc(projects.updatedAt));
+
+      return NextResponse.json({ projects: ownedProjects });
+    }
+
     const session = await getBrowserSession();
     if (!session) return NextResponse.json({ projects: [] });
 
@@ -33,13 +50,19 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await auth();
+    if (!user?.user?.id) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+
     const input = parseProjectInput(await request.json());
     if (!input) return NextResponse.json({ error: 'Invalid project data.' }, { status: 400 });
 
-    const session = await getOrCreateBrowserSession();
     const [project] = await getDatabase()
       .insert(projects)
-      .values({ ...input, sessionId: session.id })
+      .values({
+        ...input,
+        sessionId: null,
+        userId: user.user.id,
+      })
       .returning({
         id: projects.id,
         name: projects.name,
@@ -49,8 +72,7 @@ export async function POST(request: Request) {
         updatedAt: projects.updatedAt,
       });
 
-    const response = NextResponse.json({ project }, { status: 201 });
-    return setBrowserSessionCookie(response, session.token);
+    return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     if (error instanceof SyntaxError) {
       return NextResponse.json({ error: 'Invalid JSON request body.' }, { status: 400 });

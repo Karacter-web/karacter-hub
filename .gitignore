@@ -16,7 +16,9 @@
 /build
 
 # netlify
+# deployment output
 .netlify
+.vercel
 
 # misc
 .DS_Store
@@ -28,8 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env*.local
-.env
+# local env files and secrets; keep the documented template versioned
+.env*
+!.env.example
 
 # typescript
 *.tsbuildinfo

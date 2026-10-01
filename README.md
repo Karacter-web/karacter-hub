@@ -16,14 +16,15 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
 - **Live Preview**: See your app running instantly in the browser via WebContainer
 - **Iterative Refinement**: Chat with AI to tweak and improve your code
 - **One-Click Deploy**: Push your entire project to GitHub
-- **Persistent Projects**: Save and reopen generated projects from a private browser-session library
+- **Persistent Projects**: Save projects to your account and reopen them across devices
+- **Account Access**: Sign in with a username/email and password, Google, or GitHub
 - **Multi-Provider AI**: Support for Mistral, OpenAI, Anthropic, and more
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 20.x
+- Node.js 22.x
 - npm or yarn
 - A **Mistral AI API key** (recommended for development)
 
@@ -50,26 +51,59 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
    MISTRAL_API_KEY=your_api_key_here
    NEXT_PUBLIC_AI_MODEL=mistral-large
   DATABASE_URL=your_neon_pooled_connection_string
+  AUTH_SECRET=generate_a_random_secret
    ```
 
 4. Provision Neon and run the database migration:
   - Create a Postgres project in the Neon Console.
   - Copy its pooled connection string into `DATABASE_URL` in `.env.local`.
-  - Run `npm run db:migrate` to create the session and project tables.
+  - Run `npm run db:migrate` to create the account, session, rate-limit, and project tables.
   - Run `npm run db:studio` to inspect the database locally.
 
-5. Run the development server:
+5. Configure Auth.js locally. Generate `AUTH_SECRET` with
+   `openssl rand -base64 32`. Password sign-up also requires the Neon database
+   URL and email verification settings below; OAuth providers are optional.
+
+6. Configure email verification and sign-in links:
+   - In Resend, verify a sending domain and create an API key with email-send
+     permission.
+   - Set `AUTH_RESEND_KEY` to that key and `AUTH_EMAIL_FROM` to a sender on the
+     verified domain, for example `KaracterHub <auth@example.com>`.
+   - Password accounts cannot sign in until the verification link is used.
+     Resend email links also provide passwordless sign-in and account recovery.
+
+7. Configure optional OAuth providers:
+   - **Google:** Create a Web OAuth client in Google Cloud Console. Add
+     `http://localhost:3000` as an authorized JavaScript origin and
+     `http://localhost:3000/api/auth/callback/google` as an authorized redirect
+     URI. Set the client ID and secret as `AUTH_GOOGLE_ID` and
+     `AUTH_GOOGLE_SECRET`.
+   - **GitHub identity:** Create an OAuth App in GitHub Developer settings. Set
+     its callback URL to
+     `http://localhost:3000/api/auth/callback/github`. Set its client ID and
+     secret as `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET`.
+   - For production, add the matching HTTPS application origin and callback
+     URLs using the deployed KaracterHub domain. These OAuth credentials are
+     only for signing in; they do not grant GitHub repository permissions.
+
+8. In Netlify, set `DATABASE_URL`, `AUTH_SECRET`, and enabled provider secrets
+   in Site configuration → Environment variables for each deploy context. Set
+   `AUTH_TRUST_HOST=true` only for the trusted Netlify deployment. Keep all
+   credentials server-side; never use a `NEXT_PUBLIC_` prefix.
+
+9. Run the development server:
    ```bash
    npm run dev
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser
+10. Open [http://localhost:3000](http://localhost:3000) in your browser. Create
+  an account at `/signup`, then use `/app` for the protected workspace.
 
 ## Usage
 
 ### 1. Generate a New App
 
-1. Enter a description like: _"Build a Todo app with TypeScript, Tailwind CSS, and local storage"_
+1. Create an account or sign in, then enter a description like: _"Build a Todo app with TypeScript, Tailwind CSS, and local storage"_
 2. Click "Generate App" or press Enter
 3. Wait for AI to generate the code (typically 10-30 seconds)
 4. Watch the live preview load in the iframe
@@ -244,7 +278,8 @@ Currently configured:
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
+- **Authentication**: Auth.js with Neon persistence, verified credentials, and optional OAuth providers
 - **Language**: TypeScript 5
 - **State Management**: Zustand
 - **Styling**: Tailwind CSS v4
@@ -255,9 +290,10 @@ Currently configured:
 
 ## Security Considerations
 
-1. **API Keys**: Never commit `.env.local` to version control
-2. **CORS**: Configure properly for production
-3. **Rate Limiting**: Implement rate limiting for API endpoints in production
+1. **Auth.js**: Store `AUTH_SECRET` and OAuth client secrets only in server-side environment settings.
+2. **Project ownership**: Authenticated project APIs scope every query to the account ID; guest projects are claimed by the first account signing in from that browser.
+3. **GitHub access**: GitHub sign-in does not grant repository permissions. The current push route accepts a token in its request body; a GitHub App with short-lived installation tokens is the planned replacement.
+4. **Rate limiting**: Registration, sign-in, generation, and refactoring use database-backed limits. Configure upstream edge protections as well for production.
 4. **Authentication**: Use OAuth for GitHub in production
 5. **Input Validation**: All API endpoints validate input
 6. **WebContainer**: Runs in a sandboxed iframe with restricted permissions

@@ -1,6 +1,8 @@
 import { streamText } from 'ai';
 import { mistral } from '@ai-sdk/mistral';
 import { NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import type { FileNode } from '@/store/useAppStore';
 
 // ============================================================================
@@ -183,17 +185,32 @@ function getLanguageFromPath(path: string): string {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+
+    const limit = await consumeRateLimit(`refactor:${session.user.id}`, 10, 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Refactor limit reached. Try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } },
+      );
+    }
+
+    if (Number(request.headers.get('content-length') ?? 0) > 4_100_000) {
+      return NextResponse.json({ error: 'Project context is too large.' }, { status: 413 });
+    }
+
     const body = await request.json();
     const { prompt, fileTree, projectName = 'karacter-app' }: RefactorRequest = body;
 
-    if (!prompt || typeof prompt !== 'string') {
+    if (!prompt || typeof prompt !== 'string' || prompt.length > 20_000) {
       return NextResponse.json(
         { error: 'Prompt is required and must be a string' },
         { status: 400 }
       );
     }
 
-    if (!fileTree || !Array.isArray(fileTree)) {
+    if (!fileTree || !Array.isArray(fileTree) || JSON.stringify(fileTree).length > 4_000_000) {
       return NextResponse.json(
         { error: 'fileTree is required and must be an array' },
         { status: 400 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { IBM_Plex_Mono, Space_Grotesk } from 'next/font/google';
+import AuthSessionProvider from '@/components/auth/AuthSessionProvider';
 import './globals.css';
 
 const displayFont = Space_Grotesk({
@@ -57,7 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${displayFont.variable} ${codeFont.variable}`}>
-        {children}
+        <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Octokit } from '@octokit/rest';
 import type { FileNode } from '@/store/useAppStore';
+import { auth } from '@/lib/auth';
 
 // ============================================================================
 // Types
@@ -316,6 +317,11 @@ async function getBranchCommitSha(
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: false, error: 'Sign in required.' } as GitHubPushResponse, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       token,
@@ -480,37 +486,8 @@ export async function POST(request: Request) {
 }
 
 // GET for testing/validation
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const token = searchParams.get('token');
-    
-    if (!token) {
-      return NextResponse.json({
-        message: 'GitHub Push API',
-        usage: 'POST with { token, repo?: string, newRepoName?: string, fileTree, commitMessage?, projectName? }',
-        example: {
-          token: 'gho_...',
-          newRepoName: 'my-new-app',
-          fileTree: [{ path: 'index.html', content: '<h1>Hello</h1>', status: 'idle' }],
-        },
-      });
-    }
-
-    // Validate token
-    const octokit = new Octokit({ auth: token });
-    const user = await getAuthenticatedUser(octokit);
-
-    return NextResponse.json({
-      authenticated: true,
-      user: user.login,
-      message: 'Token is valid',
-    });
-
-  } catch (error: any) {
-    return NextResponse.json(
-      { authenticated: false, error: error.message || 'Invalid token' },
-      { status: 401 }
-    );
-  }
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+  return NextResponse.json({ message: 'GitHub push API', method: 'POST' });
 }

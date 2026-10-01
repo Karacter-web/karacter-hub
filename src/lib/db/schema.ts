@@ -1,12 +1,71 @@
 import {
   index,
+  integer,
   jsonb,
+  primaryKey,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    name: text('name'),
+    email: text('email'),
+    emailVerified: timestamp('email_verified', { withTimezone: true }),
+    image: text('image'),
+    username: text('username'),
+    passwordHash: text('password_hash'),
+  },
+  table => [
+    uniqueIndex('users_email_idx').on(table.email),
+    uniqueIndex('users_username_idx').on(table.username),
+  ],
+);
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('provider_account_id').notNull(),
+    refresh_token: text('refresh_token'),
+    access_token: text('access_token'),
+    expires_at: integer('expires_at'),
+    token_type: text('token_type'),
+    scope: text('scope'),
+    id_token: text('id_token'),
+    session_state: text('session_state'),
+  },
+  table => [primaryKey({ columns: [table.provider, table.providerAccountId] })],
+);
+
+export const sessions = pgTable('sessions', {
+  sessionToken: text('session_token').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expires: timestamp('expires', { withTimezone: true }).notNull(),
+});
+
+export const verificationTokens = pgTable(
+  'verification_tokens',
+  {
+    identifier: text('identifier').notNull(),
+    token: text('token').notNull(),
+    expires: timestamp('expires', { withTimezone: true }).notNull(),
+  },
+  table => [primaryKey({ columns: [table.identifier, table.token] })],
+);
+
+export const authRateLimits = pgTable('auth_rate_limits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(0),
+  windowStartedAt: timestamp('window_started_at', { withTimezone: true }).notNull(),
+});
 
 export interface StoredFileNode {
   path: string;
@@ -32,8 +91,8 @@ export const projects = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     sessionId: uuid('session_id')
-      .notNull()
-      .references(() => browserSessions.id, { onDelete: 'cascade' }),
+      .references(() => browserSessions.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description').notNull().default(''),
     gitRepoUrl: text('git_repo_url'),
@@ -41,5 +100,8 @@ export const projects = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index('projects_session_updated_idx').on(table.sessionId, table.updatedAt)],
+  table => [
+    index('projects_session_updated_idx').on(table.sessionId, table.updatedAt),
+    index('projects_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
 );

@@ -26,11 +26,15 @@ receives the connection string.
 
 The schema lives in `src/lib/db/schema.ts`:
 
+- Auth.js `users`, `accounts`, `sessions`, and `verification_tokens` tables store accounts and OAuth identities. Auth.js uses JWT sessions; the session table remains available to the adapter.
+- `users.username` and `users.password_hash` support credentials sign-in. Passwords are bcrypt-hashed and never stored in plaintext; password sign-in is enabled only after email verification through the configured Resend provider.
+- `projects.user_id` is the account owner for authenticated projects. Existing browser-session projects are claimed once at sign-in; the browser-session foreign key remains for anonymous projects and migration continuity.
+- `auth_rate_limits` stores hashed keys and atomic counters for shared throttling across serverless instances.
 - `browser_sessions` stores a SHA-256 hash of a random browser token and a
   30-day expiry. The raw token is only held in an HttpOnly, SameSite=Lax cookie.
-- `projects` stores project metadata and its generated file tree as JSONB. Each
-  project belongs to one browser session, with a foreign key and a session/time
-  index.
+- `projects` stores project metadata and its generated file tree as JSONB. New
+   projects require an account. Legacy guest projects are claimed at sign-in and
+   no longer depend on guest-session lifetime afterward.
 
 For schema changes, update the Drizzle schema, then create and review a
 migration:
@@ -46,12 +50,12 @@ Use `npm run db:studio` for local inspection. `drizzle.config.ts` reads
 
 ## Current Identity Boundary
 
-Project ownership is browser-session scoped, not account scoped. The API checks
-the session cookie and includes its database ID in every project query, so a
-project UUID alone does not grant access. Clearing the cookie or changing
-browsers loses access to that anonymous library; account login and session
-transfer should be added before promising cross-device recovery or team
-workspaces. Expired session cleanup can be added as a scheduled database task.
+Anonymous project ownership is browser-session scoped. Signed-in ownership is
+account scoped, with both API paths checking the owner in every project query.
+On successful sign-in, unclaimed projects from that browser session are assigned
+to that account. A project UUID alone does not grant access. Expired browser
+sessions and old rate-limit rows should be cleaned up with a scheduled database
+task as the service scales.
 
 The AI and GitHub credentials belong in Netlify's server environment settings.
 Never put private values in `NEXT_PUBLIC_*` variables or generated project

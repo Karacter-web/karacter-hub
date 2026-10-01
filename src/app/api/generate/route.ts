@@ -1,6 +1,8 @@
 import { streamText } from 'ai';
 import { mistral } from '@ai-sdk/mistral';
 import { NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
 
 // ============================================================================
 // System Prompt
@@ -125,11 +127,22 @@ For a "Todo app with TypeScript and Tailwind":
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+
+    const limit = await consumeRateLimit(`generate:${session.user.id}`, 5, 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Generation limit reached. Try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } },
+      );
+    }
+
     const { prompt } = await request.json();
 
-    if (!prompt || typeof prompt !== 'string') {
+    if (!prompt || typeof prompt !== 'string' || prompt.length > 20_000) {
       return NextResponse.json(
-        { error: 'Prompt is required and must be a string' },
+        { error: 'Prompt is required and must be at most 20,000 characters.' },
         { status: 400 }
       );
     }
