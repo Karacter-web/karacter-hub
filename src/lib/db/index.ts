@@ -1,15 +1,1 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
-import * as schema from './schema';
-
-let database: ReturnType<typeof drizzle<typeof schema>> | undefined;
-
-export function getDatabase() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is not configured.');
-  }
-
-  database ??= drizzle(neon(connectionString), { schema });
-  return database;
-}
+export { getDatabase, hasDatabaseConfiguration } from '@/db';

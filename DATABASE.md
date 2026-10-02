@@ -1,62 +1,61 @@
-# Neon PostgreSQL
+# Netlify Database and Optional Neon
 
-KaracterHub uses Neon Postgres through `@neondatabase/serverless` and Drizzle
-ORM. The Next.js API routes are the only database clients; the browser never
-receives the connection string.
+KaracterHub uses `@netlify/database` and Drizzle's native Netlify adapter by
+default. Netlify resolves the managed connection automatically; the app does
+not need a database URL. Installing the package provisions the database on the
+first deploy, and Netlify applies committed migration files during deployment.
+Netlify Database is available on credit-based plans.
 
-## Provision Neon
+## Local Development
 
-1. Create a project and database in the Neon Console.
-2. Open the database's connection details and copy the **pooled** connection
-   string. Keep its password private.
-3. Set the string as `DATABASE_URL` in local `.env.local` and in Netlify's
-   server-side environment variables for every deploy context that needs project
-   storage. Do not prefix it with `NEXT_PUBLIC_`.
-4. Run the committed migrations against that database:
+Run `npm run dev` (`netlify dev`) after authenticating and linking the project
+with the Netlify CLI. Local database migrations are applied by
+`npm run db:migrate:local`, which targets the Netlify CLI's local database.
+Generate reviewed migration files with `npm run db:generate`; files are written
+to `netlify/database/migrations/`.
 
-   ```sh
-   npm run db:migrate
-   ```
-
-5. Start the app and check the project library. When `DATABASE_URL` is absent
-   or the database is unreachable, the app reports storage as unavailable;
-   generation and preview remain separate features.
+Never run `drizzle-kit push`. Never run `drizzle-kit migrate` against a hosted
+Netlify database. Hosted migrations are applied only through the Netlify deploy
+lifecycle.
 
 ## Schema and Migrations
 
-The schema lives in `src/lib/db/schema.ts`:
+The product schema is in `src/lib/db/schema.ts`. It contains:
 
-- Auth.js `users`, `accounts`, `sessions`, and `verification_tokens` tables store accounts and OAuth identities. Auth.js uses JWT sessions; the session table remains available to the adapter.
-- `users.username` and `users.password_hash` support credentials sign-in. Passwords are bcrypt-hashed and never stored in plaintext; password sign-in is enabled only after email verification through the configured Resend provider.
-- `projects.user_id` is the account owner for authenticated projects. Existing browser-session projects are claimed once at sign-in; the browser-session foreign key remains for anonymous projects and migration continuity.
-- `auth_rate_limits` stores hashed keys and atomic counters for shared throttling across serverless instances.
-- `browser_sessions` stores a SHA-256 hash of a random browser token and a
-  30-day expiry. The raw token is only held in an HttpOnly, SameSite=Lax cookie.
-- `projects` stores project metadata and its generated file tree as JSONB. New
-   projects require an account. Legacy guest projects are claimed at sign-in and
-   no longer depend on guest-session lifetime afterward.
+- Auth.js `users`, `accounts`, `sessions`, and `verification_tokens` tables.
+- `auth_rate_limits` for shared throttling across serverless instances.
+- `browser_sessions` for hashed guest-session tokens.
+- `projects` for generated files, account ownership, and legacy guest ownership.
+- `byo_databases` for a per-project provider selection and encrypted optional
+  Neon credentials. The default Netlify path stores no connection string.
 
-For schema changes, update the Drizzle schema, then create and review a
-migration:
+For schema changes, update the TypeScript schema and generate/review a migration:
 
 ```sh
 npm run db:generate
-npm run db:migrate
+npm run db:migrate:local
 ```
 
-Commit the generated SQL and Drizzle journal together with the schema change.
-Use `npm run db:studio` for local inspection. `drizzle.config.ts` reads
-`.env.local` for local commands.
+The second command applies to the local database only. Commit generated SQL and
+snapshots; Netlify applies these during deploy. Use `npm run db:studio` for local
+inspection. Drizzle config uses `NETLIFY_DB_URL` when supplied by Netlify CLI.
 
-## Current Identity Boundary
+## Optional BYO Neon
 
-Anonymous project ownership is browser-session scoped. Signed-in ownership is
-account scoped, with both API paths checking the owner in every project query.
-On successful sign-in, unclaimed projects from that browser session are assigned
-to that account. A project UUID alone does not grant access. Expired browser
-sessions and old rate-limit rows should be cleaned up with a scheduled database
-task as the service scales.
+The project owner can open `/app/settings/database`, select a saved project, and
+choose **Bring your own Neon**. Paste a Neon PostgreSQL connection string and,
+optionally, a Neon API key. The server validates the Neon host and tests the
+connection before storing either credential encrypted with AES-256-GCM.
 
-The AI and GitHub credentials belong in Netlify's server environment settings.
-Never put private values in `NEXT_PUBLIC_*` variables or generated project
-files.
+Set `CREDENTIAL_ENCRYPTION_KEY` to a base64-encoded random 32-byte key generated
+with `openssl rand -base64 32` in local and Netlify server-side environment
+settings. Do not prefix it with `NEXT_PUBLIC_`. Connection strings and API keys
+are never returned to the browser or logged. Each BYO request verifies project
+ownership, decrypts only for the request lifetime, and closes its Neon pool.
+
+Disconnecting removes KaracterHub's encrypted connection record and returns
+that project to Netlify Database; it does not alter or delete the external Neon
+project. Netlify never automatically applies schema migrations to BYO Neon. The
+owner must review the SQL preview and explicitly confirm **Push schema**. That
+route runs pending migrations in one external transaction, uses a per-project
+advisory lock, and records hashes in the external `schema_migrations` ledger.

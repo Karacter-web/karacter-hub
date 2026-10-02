@@ -1,4 +1,3 @@
-import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import bcrypt from 'bcryptjs';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import NextAuth, { type NextAuthConfig } from 'next-auth';
@@ -6,15 +5,16 @@ import Credentials from 'next-auth/providers/credentials';
 import GitHub from 'next-auth/providers/github';
 import Google from 'next-auth/providers/google';
 import Resend from 'next-auth/providers/resend';
-import { getDatabase } from '@/lib/db';
+import { getDatabase, hasDatabaseConfiguration } from '@/lib/db';
 import { getBrowserSession } from '@/lib/db/browser-session';
 import { consumeRateLimit, getClientAddress } from '@/lib/auth/rate-limit';
-import { accounts, projects, sessions, users, verificationTokens } from '@/lib/db/schema';
+import { createNetlifyAuthAdapter } from '@/lib/auth/adapter';
+import { projects, users } from '@/lib/db/schema';
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomUUID(), 12);
 const configuredProviders: NextAuthConfig['providers'] = [];
 
-if (process.env.DATABASE_URL && process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+if (hasDatabaseConfiguration() && process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
   configuredProviders.push(Google({
     profile(profile) {
       return {
@@ -28,7 +28,7 @@ if (process.env.DATABASE_URL && process.env.AUTH_GOOGLE_ID && process.env.AUTH_G
   }));
 }
 
-if (process.env.DATABASE_URL && process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
+if (hasDatabaseConfiguration() && process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
   configuredProviders.push(GitHub({
     profile(profile) {
       return {
@@ -41,7 +41,7 @@ if (process.env.DATABASE_URL && process.env.AUTH_GITHUB_ID && process.env.AUTH_G
   }));
 }
 
-if (process.env.DATABASE_URL && process.env.AUTH_RESEND_KEY && process.env.AUTH_EMAIL_FROM) {
+if (hasDatabaseConfiguration() && process.env.AUTH_RESEND_KEY && process.env.AUTH_EMAIL_FROM) {
   const resendProvider = Resend({
     apiKey: process.env.AUTH_RESEND_KEY,
     from: process.env.AUTH_EMAIL_FROM,
@@ -94,14 +94,7 @@ configuredProviders.push(Credentials({
 }));
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: process.env.DATABASE_URL
-    ? DrizzleAdapter(getDatabase(), {
-      usersTable: users,
-      accountsTable: accounts,
-      sessionsTable: sessions,
-      verificationTokensTable: verificationTokens,
-    })
-    : undefined,
+  adapter: hasDatabaseConfiguration() ? createNetlifyAuthAdapter() : undefined,
   session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 30 },
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustHost: process.env.AUTH_TRUST_HOST === 'true',

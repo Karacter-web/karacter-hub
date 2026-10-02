@@ -42,7 +42,6 @@ export async function PATCH(request: Request) {
     if (databaseError.code === '23505' || databaseError.cause?.code === '23505') {
       return NextResponse.json({ error: 'That username is already in use.' }, { status: 409 });
     }
-    console.error('Profile update failed:', error);
     return NextResponse.json({ error: 'Profile could not be updated.' }, { status: 503 });
   }
 }

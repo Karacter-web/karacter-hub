@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { Octokit } from '@octokit/rest';
 import type { FileNode } from '@/store/useAppStore';
 import { auth } from '@/lib/auth';
+import { getOwnedProject } from '@/lib/projects/ownership';
+import { redactSecretValues } from '@/lib/ai/redact';
 
 // ============================================================================
 // Types
@@ -9,9 +11,9 @@ import { auth } from '@/lib/auth';
 
 interface GitHubPushRequest {
   token: string;
+  projectId: string;
   repo?: string; // Optional: existing repo name (format: owner/repo)
   newRepoName?: string; // Optional: name for new repository
-  fileTree: FileNode[];
   commitMessage?: string;
   projectName?: string;
 }
@@ -61,7 +63,12 @@ function flattenFileTree(nodes: FileNode[], prefix = ''): Map<string, string> {
         });
       }
     } else {
-      files.set(fullPath, node.content);
+      const filename = fullPath.split('/').pop() ?? '';
+      const isSecretFile = /(?:^|\/)\.env(?:\.[^/]*)?$/i.test(fullPath) && filename !== '.env.example';
+      const isCredentialFile = /(?:^|\/)(?:credentials|secrets?)(?:\.[^/]*)?$/i.test(fullPath);
+      if (!isSecretFile && !isCredentialFile && !/\.pem$/i.test(fullPath)) {
+        files.set(fullPath, redactSecretValues(node.content));
+      }
     }
   });
   
@@ -118,8 +125,7 @@ async function createBlobs(
           encoding: 'base64',
         });
         return { path, sha: data.sha };
-      } catch (err) {
-        console.error(`Failed to create blob for ${path}:`, err);
+      } catch {
         return null;
       }
     });
@@ -159,9 +165,8 @@ async function createTree(
     });
     
     return data.sha;
-  } catch (err) {
-    console.error('Failed to create tree:', err);
-    throw err;
+  } catch {
+    throw new Error('GitHub tree creation failed.');
   }
 }
 
@@ -172,7 +177,7 @@ async function getAuthenticatedUser(octokit: Octokit): Promise<{ login: string; 
   try {
     const { data } = await octokit.rest.users.getAuthenticated();
     return { login: data.login, id: data.id };
-  } catch (err) {
+  } catch {
     throw new Error('Failed to authenticate with GitHub. Please check your token.');
   }
 }
@@ -257,9 +262,8 @@ async function createCommit(
     });
     
     return data.sha;
-  } catch (err) {
-    console.error('Failed to create commit:', err);
-    throw err;
+  } catch {
+    throw new Error('GitHub commit creation failed.');
   }
 }
 
@@ -280,9 +284,8 @@ async function updateReference(
       ref,
       sha: commitSha,
     });
-  } catch (err) {
-    console.error('Failed to update reference:', err);
-    throw err;
+  } catch {
+    throw new Error('GitHub branch update failed.');
   }
 }
 
@@ -325,11 +328,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       token,
+      projectId,
       repo: existingRepo,
       newRepoName,
-      fileTree,
       commitMessage = DEFAULT_COMMIT_MESSAGE,
-      projectName = 'karacter-app',
     }: GitHubPushRequest = body;
 
     if (!token || typeof token !== 'string') {
@@ -339,12 +341,17 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!fileTree || !Array.isArray(fileTree)) {
+    if (!projectId || typeof projectId !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'fileTree is required and must be an array' } as GitHubPushResponse,
+        { success: false, error: 'projectId is required' } as GitHubPushResponse,
         { status: 400 }
       );
     }
+
+    const project = await getOwnedProject(projectId, session.user.id);
+    if (!project) return NextResponse.json({ success: false, error: 'Project not found.' } as GitHubPushResponse, { status: 404 });
+    const fileTree = project.fileTree as FileNode[];
+    const projectName = project.name;
 
     if (!existingRepo && !newRepoName) {
       return NextResponse.json(
@@ -472,14 +479,14 @@ export async function POST(request: Request) {
       { status: 200 }
     );
 
-  } catch (error: any) {
-    console.error('GitHub push error:', error);
-    
-    const errorMessage = error.message || 'Failed to push to GitHub';
-    const statusCode = error.status || 500;
+  } catch (error: unknown) {
+    const status = error && typeof error === 'object' && 'status' in error
+      ? Number(error.status)
+      : 500;
+    const statusCode = Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
 
     return NextResponse.json(
-      { success: false, error: errorMessage } as GitHubPushResponse,
+      { success: false, error: 'GitHub push failed.' } as GitHubPushResponse,
       { status: statusCode }
     );
   }

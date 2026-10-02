@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getDatabase } from '@/lib/db';
+import { hasDatabaseConfiguration } from '@/db';
 import { consumeRateLimit, getClientAddress } from '@/lib/auth/rate-limit';
 import { users } from '@/lib/db/schema';
 
@@ -10,7 +11,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_PASSWORD_BYTES = 72;
 
 export async function POST(request: Request) {
-  if (!process.env.DATABASE_URL || !process.env.AUTH_RESEND_KEY || !process.env.AUTH_EMAIL_FROM) {
+  if (!hasDatabaseConfiguration() || !process.env.AUTH_RESEND_KEY || !process.env.AUTH_EMAIL_FROM) {
     return NextResponse.json(
       { error: 'Password sign-up requires Neon and email verification configuration.' },
       { status: 503 },
@@ -75,7 +76,6 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    console.error('Account registration failed:', error);
     return NextResponse.json({ error: 'Account registration is unavailable.' }, { status: 503 });
   }
 }

@@ -19,6 +19,7 @@
 # deployment output
 .netlify
 .vercel
+deno.lock
 
 # misc
 .DS_Store

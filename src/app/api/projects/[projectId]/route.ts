@@ -42,8 +42,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!project) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
     return NextResponse.json({ project });
-  } catch (error) {
-    console.error('Project lookup failed:', error);
+  } catch {
     return NextResponse.json({ error: 'Project storage is unavailable.' }, { status: 503 });
   }
 }
@@ -89,7 +88,6 @@ export async function PUT(request: Request, { params }: RouteContext) {
     if (error instanceof SyntaxError) {
       return NextResponse.json({ error: 'Invalid JSON request body.' }, { status: 400 });
     }
-    console.error('Project update failed:', error);
     return NextResponse.json({ error: 'Project storage is unavailable.' }, { status: 503 });
   }
 }

@@ -1,9 +1,10 @@
-import { streamText } from 'ai';
-import { mistral } from '@ai-sdk/mistral';
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import type { FileNode } from '@/store/useAppStore';
+import { streamAIResponse } from '@/lib/ai/response';
+import { redactSecretValues } from '@/lib/ai/redact';
+import { getOwnedProject } from '@/lib/projects/ownership';
 
 // ============================================================================
 // Types
@@ -11,8 +12,8 @@ import type { FileNode } from '@/store/useAppStore';
 
 interface RefactorRequest {
   prompt: string;
-  fileTree: FileNode[];
-  projectName?: string;
+  projectId: string;
+  model?: string;
 }
 
 interface RefactorOperation {
@@ -128,7 +129,9 @@ function flattenFileTreeForContext(nodes: FileNode[], prefix = ''): Record<strin
         Object.assign(files, flattenFileTreeForContext(node.children, fullPath));
       }
     } else {
-      files[fullPath] = node.content;
+      if (!/(?:^|\/)\.env(?:\.[^/]*)?$/i.test(fullPath)) {
+        files[fullPath] = redactSecretValues(node.content);
+      }
     }
   });
   
@@ -201,7 +204,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { prompt, fileTree, projectName = 'karacter-app' }: RefactorRequest = body;
+    const { prompt, projectId, model }: RefactorRequest = body;
 
     if (!prompt || typeof prompt !== 'string' || prompt.length > 20_000) {
       return NextResponse.json(
@@ -210,22 +213,28 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!fileTree || !Array.isArray(fileTree) || JSON.stringify(fileTree).length > 4_000_000) {
+    if (typeof projectId !== 'string') {
       return NextResponse.json(
-        { error: 'fileTree is required and must be an array' },
-        { status: 400 }
+        { error: 'projectId is required.' },
+        { status: 400 },
       );
     }
 
+    const project = await getOwnedProject(projectId, session.user.id);
+    if (!project) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+    if (JSON.stringify(project.fileTree).length > 4_000_000) {
+      return NextResponse.json({ error: 'Project context is too large.' }, { status: 413 });
+    }
+
     // Flatten files for context
-    const files = flattenFileTreeForContext(fileTree);
+    const files = flattenFileTreeForContext(project.fileTree as FileNode[]);
     const fileContext = formatFilesForContext(files);
 
     // Build the user message
     const userMessage = `
-Project: ${projectName}
+Project: ${redactSecretValues(project.name)}
 
-User request: ${prompt}
+User request: ${redactSecretValues(prompt)}
 
 Current file tree (${Object.keys(files).length} files):
 ${Object.keys(files).map(f => `- ${f}`).join('\n')}
@@ -239,37 +248,14 @@ Return ONLY the JSON response as specified in the system prompt.
 Do NOT add any explanations or comments outside the JSON.
 `;
 
-    // Determine model - support Mistral and other providers
-    let model;
-    const aiModel = process.env.AI_MODEL || process.env.NEXT_PUBLIC_AI_MODEL || 'mistral-large';
-    
-    if (aiModel.startsWith('mistral-') || aiModel.startsWith('mistral')) {
-      model = mistral(aiModel);
-    } else {
-      // Fallback to generic model string
-      model = aiModel;
-    }
-
-    // Stream the LLM response
-    const result = await streamText({
+    return streamAIResponse({
       model,
       system: REFACTOR_SYSTEM_PROMPT,
       prompt: userMessage,
-      temperature: 0.2, // Lower temperature for more precise refactoring
+      temperature: 0.2,
       maxOutputTokens: 16000,
     });
-
-    return result.toTextStreamResponse({
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-
   } catch (error) {
-    console.error('Refactor API error:', error);
-    
     if (error instanceof SyntaxError) {
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },
@@ -277,10 +263,7 @@ Do NOT add any explanations or comments outside the JSON.
       );
     }
 
-    return NextResponse.json(
-      { error: 'Internal server error during refactoring' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'AI provider is unavailable.' }, { status: 503 });
   }
 }
 

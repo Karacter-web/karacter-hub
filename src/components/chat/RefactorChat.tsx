@@ -202,6 +202,7 @@ function parseStreamingJson(chunk: string): Partial<RefactorResponse> | null {
 export default function RefactorChat() {
   const fileTree = useFileTree();
   const project = useProject();
+  const setProject = useAppStore(state => state.setProject);
   const setFileTree = useAppStore(state => state.setFileTree);
   const updateFile = useAppStore(state => state.updateFile);
   const addFile = useAppStore(state => state.addFile);
@@ -357,6 +358,35 @@ export default function RefactorChat() {
 
       setMessages(prev => [...prev, assistantMessage]);
 
+      const isExistingProject = /^[0-9a-f-]{36}$/i.test(project.id);
+      const saveResponse = await fetch(
+        isExistingProject ? `/api/projects/${project.id}` : '/api/projects',
+        {
+          method: isExistingProject ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: project.name,
+            description: project.description,
+            gitRepoUrl: project.gitRepoUrl,
+            fileTree,
+          }),
+        },
+      );
+      const savedResult = await saveResponse.json() as {
+        project?: { id: string; name: string; description: string; gitRepoUrl?: string | null };
+        error?: string;
+      };
+      if (!saveResponse.ok || !savedResult.project) {
+        throw new Error(savedResult.error || 'Save this project before refining it.');
+      }
+      const ownedProject = savedResult.project;
+      setProject({
+        id: ownedProject.id,
+        name: ownedProject.name,
+        description: ownedProject.description,
+        gitRepoUrl: ownedProject.gitRepoUrl ?? undefined,
+      });
+
       const response = await fetch('/api/refactor', {
         method: 'POST',
         headers: {
@@ -364,8 +394,7 @@ export default function RefactorChat() {
         },
         body: JSON.stringify({
           prompt: input.trim(),
-          fileTree,
-          projectName: project.name,
+          projectId: ownedProject.id,
         }),
         signal: abortController.signal,
       });
@@ -478,7 +507,7 @@ export default function RefactorChat() {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [input, isStreaming, fileTree, project.name, applyRefactorChanges]);
+  }, [input, isStreaming, fileTree, project, setProject, applyRefactorChanges]);
 
   // Handle placeholder selection
   const handlePlaceholderClick = useCallback((prompt: string) => {

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { signOut } from 'next-auth/react';
+import Link from 'next/link';
 import { LoaderCircle, LogOut, Save } from 'lucide-react';
 
 interface ProfileSettingsProps {
@@ -47,7 +48,10 @@ export default function ProfileSettings({ name, username, email, providers }: Pr
     <div className="max-w-[760px]">
       <div className="flex items-start justify-between gap-4 border-b border-line pb-5">
         <div><p className="font-mono text-[10px] uppercase text-muted">Your account</p><h1 className="mt-1 text-[25px] font-semibold">Profile settings</h1></div>
-        <button onClick={() => void signOut({ redirectTo: '/' })} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[7px] border border-line-strong bg-white px-3 text-[11px] font-medium text-ink-soft hover:bg-surface-soft"><LogOut size={14} /> Sign out</button>
+        <div className="flex shrink-0 gap-2">
+          <Link href="/app/settings/database" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-line-strong bg-white px-3 text-[11px] font-medium text-ink-soft hover:bg-surface-soft"><Save size={13} /> Database</Link>
+          <button onClick={() => void signOut({ redirectTo: '/' })} className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-line-strong bg-white px-3 text-[11px] font-medium text-ink-soft hover:bg-surface-soft"><LogOut size={14} /> Sign out</button>
+        </div>
       </div>
 
       <form onSubmit={event => void saveProfile(event)} className="border-b border-line py-6">

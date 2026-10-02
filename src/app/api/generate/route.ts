@@ -1,8 +1,8 @@
-import { streamText } from 'ai';
-import { mistral } from '@ai-sdk/mistral';
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { streamAIResponse } from '@/lib/ai/response';
+import { redactSecretValues } from '@/lib/ai/redact';
 
 // ============================================================================
 // System Prompt
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { prompt } = await request.json();
+    const { prompt, model } = await request.json();
 
     if (!prompt || typeof prompt !== 'string' || prompt.length > 20_000) {
       return NextResponse.json(
@@ -147,38 +147,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine model - support Mistral and other providers
-    let model;
-    const aiModel = process.env.AI_MODEL || process.env.NEXT_PUBLIC_AI_MODEL || 'mistral-large';
-    
-    if (aiModel.startsWith('mistral-') || aiModel.startsWith('mistral')) {
-      model = mistral(aiModel);
-    } else {
-      // Fallback to generic model string (for OpenAI, etc.)
-      model = aiModel;
-    }
-
-    // Stream the LLM response directly to the client
-    const result = await streamText({
-      model,
+    return streamAIResponse({
+      model: typeof model === 'string' ? model : undefined,
       system: SYSTEM_PROMPT,
-      prompt: `User prompt: ${prompt}\n\nGenerate the complete application files as JSON.`,
-      // Configuration for better JSON output
+      prompt: `User prompt: ${redactSecretValues(prompt)}\n\nGenerate the complete application files as JSON.`,
       temperature: 0.3,
       maxOutputTokens: 16000,
     });
-
-    // The client parses the streamed JSON and populates the file tree.
-    return result.toTextStreamResponse({
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-
   } catch (error) {
-    console.error('Generation error:', error);
     
     if (error instanceof SyntaxError) {
       return NextResponse.json(
@@ -187,10 +163,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
-      { error: 'Internal server error during generation' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'AI provider is unavailable.' }, { status: 503 });
   }
 }
 

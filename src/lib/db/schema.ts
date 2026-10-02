@@ -4,6 +4,7 @@ import {
   jsonb,
   primaryKey,
   pgTable,
+  pgEnum,
   text,
   timestamp,
   uniqueIndex,
@@ -104,4 +105,24 @@ export const projects = pgTable(
     index('projects_session_updated_idx').on(table.sessionId, table.updatedAt),
     index('projects_user_updated_idx').on(table.userId, table.updatedAt),
   ],
+);
+
+export const databaseProvider = pgEnum('database_provider', ['netlify', 'neon']);
+
+export const byoDatabases = pgTable(
+  'byo_databases',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    provider: databaseProvider('provider').notNull().default('netlify'),
+    connectionStringEncrypted: text('connection_string_encrypted'),
+    neonApiKeyEncrypted: text('neon_api_key_encrypted'),
+    neonProjectId: text('neon_project_id'),
+    neonDatabaseName: text('neon_database_name'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex('byo_databases_project_id_idx').on(table.projectId)],
 );

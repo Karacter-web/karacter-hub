@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getDatabase } from '@/lib/db';
+import { hasDatabaseConfiguration } from '@/db';
 import { getBrowserSession } from '@/lib/db/browser-session';
 import { parseProjectInput } from '@/lib/db/project-validation';
 import { projects } from '@/lib/db/schema';
 
 export async function GET() {
   try {
-    if (!process.env.DATABASE_URL) {
+    if (!hasDatabaseConfiguration()) {
       return NextResponse.json({ error: 'Project storage is not configured.' }, { status: 503 });
     }
     const user = await auth();
@@ -42,8 +43,7 @@ export async function GET() {
       .orderBy(desc(projects.updatedAt));
 
     return NextResponse.json({ projects: savedProjects });
-  } catch (error) {
-    console.error('Project library lookup failed:', error);
+  } catch {
     return NextResponse.json({ error: 'Project storage is unavailable.' }, { status: 503 });
   }
 }
@@ -77,7 +77,6 @@ export async function POST(request: Request) {
     if (error instanceof SyntaxError) {
       return NextResponse.json({ error: 'Invalid JSON request body.' }, { status: 400 });
     }
-    console.error('Project creation failed:', error);
     return NextResponse.json({ error: 'Project storage is unavailable.' }, { status: 503 });
   }
 }

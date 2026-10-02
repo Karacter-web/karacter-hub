@@ -199,7 +199,6 @@ export default function PreviewPanel() {
       setIsLoading(false);
 
     } catch (err) {
-      console.error('WebContainer initialization error:', err);
       if (isMounted) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         setError(errorMessage);

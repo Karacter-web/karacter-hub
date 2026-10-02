@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Database } from 'lucide-react';
 import ProfileSettings from '@/components/auth/ProfileSettings';
 import { auth } from '@/lib/auth';
 import { getDatabase } from '@/lib/db';
@@ -28,7 +28,10 @@ export default async function AccountSettingsPage() {
     <main className="min-h-screen bg-canvas text-ink">
       <header className="flex h-[66px] items-center border-b border-line bg-white px-5 sm:px-9">
         <Link href="/app" className="inline-flex items-center gap-2 text-[12px] font-medium text-ink-soft hover:text-ink"><ArrowLeft size={15} /> Back to workspace</Link>
-        <span className="ml-auto text-[12px] font-semibold">KaracterHub</span>
+        <div className="ml-auto flex items-center gap-4">
+          <Link href="/app/settings/database" className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft hover:text-ink"><Database size={14} /> Database</Link>
+          <span className="text-[12px] font-semibold">KaracterHub</span>
+        </div>
       </header>
       <div className="mx-auto max-w-[980px] px-5 py-9 sm:px-9 sm:py-12">
         {user ? <ProfileSettings name={user.name ?? ''} username={user.username ?? ''} email={user.email ?? ''} providers={Array.from(providers)} /> : <p>Account not found.</p>}
