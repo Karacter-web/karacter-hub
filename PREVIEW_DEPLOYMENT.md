@@ -86,5 +86,5 @@ Implementation steps:
   `NEXT_PUBLIC_` prefix.
 - Add the deployed HTTPS origin and matching `/api/auth/callback/google` and
   `/api/auth/callback/github` URLs to enabled OAuth applications.
-- Verify the configured Node.js 22 runtime and production environment
+- Verify the configured Node.js 24 runtime and production environment
   variables in the Vercel deployment settings.

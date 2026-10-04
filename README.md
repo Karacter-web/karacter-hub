@@ -24,7 +24,7 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
 
 ### Prerequisites
 
-- Node.js 22.x
+- Node.js 24.x
 - npm or yarn
 - A Vercel account for deployment
 - A Neon project for PostgreSQL
@@ -83,8 +83,13 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
       `http://localhost:3000/api/auth/callback/github`. Set its client ID and
       secret as `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET`.
    - For production, add the matching HTTPS application origin and callback
-     URLs using the deployed KaracterHub domain. These OAuth credentials are
-     only for signing in; they do not grant GitHub repository permissions.
+     URLs using the deployed KaracterHub domain, including
+     `https://<your-vercel-domain>/api/auth/callback/github` for GitHub. Set
+     `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET` in Vercel's server-side
+     environment settings. GitHub OAuth Apps have one callback URL, so use
+     separate apps/credentials for local and production, or update the callback
+     URL when switching environments. These credentials only enable sign-in;
+     they do not grant GitHub repository permissions.
 
 8. Configure Vercel AI Gateway by setting `AI_GATEWAY_API_KEY`, or set a
    provider-specific server-side API key and `AI_PROVIDER_MODE=byo`. Keep all
@@ -319,9 +324,9 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
-Run `npm run test:ai` and `npm run test:neon` for mocked provider, encryption,
-connection, and migration tests. `npm run db:smoke` exercises the configured
-Neon database when available.
+Run `npm run test:ai`, `npm run test:auth`, and `npm run test:neon` for mocked
+provider, OAuth email-validation, encryption, connection, and migration tests.
+`npm run db:smoke` exercises the configured Neon database when available.
 
 ## Acknowledgments
 

@@ -10,6 +10,7 @@ import { getBrowserSession } from '@/lib/db/browser-session';
 import { consumeRateLimit, getClientAddress } from '@/lib/auth/rate-limit';
 import { createAuthAdapter } from '@/lib/auth/adapter';
 import { getAuthAvailability, getAuthSecret, shouldTrustHost } from '@/lib/auth/config';
+import { hasVerifiedOAuthEmail } from '@/lib/auth/github';
 import { projects, users } from '@/lib/db/schema';
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomUUID(), 12);
@@ -126,10 +127,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async linkAccount({ user, profile }) {
       // A verified OAuth email proves ownership. Drop any password set by whoever
       // registered the address before it was verified, so it can't be used later.
-      if (!user.id || !profile || !('emailVerified' in profile) || !profile.emailVerified) return;
+      if (!user.id || !hasVerifiedOAuthEmail(profile)) return;
       await getDatabase()
         .update(users)
-        .set({ emailVerified: new Date(), passwordHash: null })
+        .set({ email: profile.email.toLowerCase(), emailVerified: new Date(), passwordHash: null })
         .where(and(eq(users.id, user.id), isNull(users.emailVerified)));
     },
   },
