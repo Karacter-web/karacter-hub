@@ -9,6 +9,8 @@ interface AuthPageProps {
   githubEnabled: boolean;
   emailEnabled: boolean;
   databaseEnabled: boolean;
+  authConfigured: boolean;
+  initialError?: string;
 }
 
 export default function AuthPage(props: AuthPageProps) {

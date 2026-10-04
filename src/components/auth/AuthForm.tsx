@@ -13,19 +13,30 @@ interface AuthFormProps {
   githubEnabled: boolean;
   emailEnabled: boolean;
   databaseEnabled: boolean;
+  authConfigured: boolean;
+  initialError?: string;
 }
 
-export default function AuthForm({ mode, callbackUrl, googleEnabled, githubEnabled, emailEnabled, databaseEnabled }: AuthFormProps) {
+export default function AuthForm({
+  mode,
+  callbackUrl,
+  googleEnabled,
+  githubEnabled,
+  emailEnabled,
+  databaseEnabled,
+  authConfigured,
+  initialError = '',
+}: AuthFormProps) {
   const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
   const [notice, setNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const credentialsEnabled = databaseEnabled && (mode === 'login' || emailEnabled);
+  const credentialsEnabled = authConfigured && databaseEnabled && (mode === 'login' || emailEnabled);
 
   async function handleCredentials(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,7 +62,11 @@ export default function AuthForm({ mode, callbackUrl, googleEnabled, githubEnabl
           return;
         }
 
-        await signIn('resend', { email: email.trim().toLowerCase(), redirectTo: callbackUrl });
+        try {
+          await signIn('resend', { email: email.trim().toLowerCase(), redirectTo: callbackUrl });
+        } catch {
+          setError('Your account was created, but the verification email could not be sent. Use "Email me a sign-in link" on the sign-in page.');
+        }
         return;
       }
 
@@ -79,7 +94,7 @@ export default function AuthForm({ mode, callbackUrl, googleEnabled, githubEnabl
   async function sendEmailLink() {
     setError('');
     setNotice('');
-    if (!emailEnabled || !identifier.includes('@')) {
+    if (!authConfigured || !emailEnabled || !identifier.includes('@')) {
       setError('Enter your account email address to receive a sign-in link.');
       return;
     }
@@ -93,6 +108,7 @@ export default function AuthForm({ mode, callbackUrl, googleEnabled, githubEnabl
   }
 
   async function handleOAuth(provider: 'google' | 'github') {
+    if (!authConfigured) return;
     setError('');
     setIsSubmitting(true);
     try {
@@ -105,38 +121,44 @@ export default function AuthForm({ mode, callbackUrl, googleEnabled, githubEnabl
 
   return (
     <div className="w-full max-w-[420px]">
-      {(googleEnabled || githubEnabled) && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {googleEnabled && (
-            <button
-              type="button"
-              onClick={() => void handleOAuth('google')}
-              disabled={isSubmitting}
-              className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-line-strong bg-white text-[13px] font-medium transition hover:bg-surface-soft disabled:opacity-60"
-            >
-              <span aria-hidden="true" className="font-bold text-[#4285f4]">G</span> Google
-            </button>
-          )}
-          {githubEnabled && (
-            <button
-              type="button"
-              onClick={() => void handleOAuth('github')}
-              disabled={isSubmitting}
-              className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-line-strong bg-white text-[13px] font-medium transition hover:bg-surface-soft disabled:opacity-60"
-            >
-              <FaGithub size={15} /> GitHub
-            </button>
-          )}
-        </div>
+      {!authConfigured && (
+        <p role="status" className="mb-4 rounded-[7px] border border-[#e5c6b9] bg-[#fff8f4] px-3 py-2.5 text-[12px] leading-5 text-[#8c4938]">
+          Sign-in is temporarily unavailable while the server finishes its authentication setup.
+        </p>
       )}
 
-      {(googleEnabled || githubEnabled) && (
-        <div className="my-5 flex items-center gap-3 text-[10px] uppercase text-muted">
-          <span className="h-px flex-1 bg-line" />
-          <span>or use email</span>
-          <span className="h-px flex-1 bg-line" />
-        </div>
+      <div className={`grid gap-2 ${googleEnabled ? 'sm:grid-cols-2' : ''}`}>
+        {googleEnabled && (
+          <button
+            type="button"
+            onClick={() => void handleOAuth('google')}
+            disabled={isSubmitting || !authConfigured}
+            className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-line-strong bg-white text-[13px] font-medium transition hover:bg-surface-soft disabled:opacity-60"
+          >
+            <span aria-hidden="true" className="font-bold text-[#4285f4]">G</span> Google
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => void handleOAuth('github')}
+          disabled={isSubmitting || !authConfigured || !githubEnabled}
+          title={githubEnabled ? undefined : 'GitHub sign-in has not been configured yet.'}
+          className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-line-strong bg-white text-[13px] font-medium transition hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <FaGithub size={15} /> {mode === 'signup' ? 'Sign up with GitHub' : 'Continue with GitHub'}
+        </button>
+      </div>
+      {!githubEnabled && (
+        <p className="mt-2 text-[10px] text-muted">GitHub sign-in is coming soon for this workspace.</p>
       )}
+
+      <div className="my-5 flex items-center gap-3 text-[10px] uppercase text-muted">
+        <span className="h-px flex-1 bg-line" />
+        <span>or use email</span>
+        <span className="h-px flex-1 bg-line" />
+      </div>
+
+      {error && !credentialsEnabled && <p role="alert" className="mb-4 rounded-[7px] border border-[#e5c6b9] bg-[#fff8f4] px-3 py-2.5 text-[12px] text-[#8c4938]">{error}</p>}
 
       {credentialsEnabled ? <form className="space-y-4" onSubmit={event => void handleCredentials(event)}>
         {mode === 'signup' ? (
@@ -240,9 +262,11 @@ export default function AuthForm({ mode, callbackUrl, googleEnabled, githubEnabl
         )}
       </form> : (
         <p role="status" className="rounded-[7px] border border-line bg-surface-soft px-3 py-3 text-[12px] leading-5 text-ink-soft">
-          {databaseEnabled
-            ? 'Password account creation is unavailable until email verification is configured.'
-            : 'Sign-in is not available until Neon database configuration is complete.'}
+          {!authConfigured
+            ? 'Email and password sign-in will be available once authentication setup is complete.'
+            : databaseEnabled
+              ? 'Password account creation is unavailable until email verification is configured.'
+              : 'Sign-in is not available until database configuration is complete.'}
         </p>
       )}
     </div>

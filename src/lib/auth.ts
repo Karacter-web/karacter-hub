@@ -9,12 +9,20 @@ import { getDatabase, hasDatabaseConfiguration } from '@/lib/db';
 import { getBrowserSession } from '@/lib/db/browser-session';
 import { consumeRateLimit, getClientAddress } from '@/lib/auth/rate-limit';
 import { createNetlifyAuthAdapter } from '@/lib/auth/adapter';
+import { getAuthAvailability, getAuthSecret, shouldTrustHost } from '@/lib/auth/config';
 import { projects, users } from '@/lib/db/schema';
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomUUID(), 12);
 const configuredProviders: NextAuthConfig['providers'] = [];
+const availability = getAuthAvailability();
 
-if (hasDatabaseConfiguration() && process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+interface GitHubEmail {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+}
+
+if (availability.googleEnabled) {
   configuredProviders.push(Google({
     profile(profile) {
       return {
@@ -28,20 +36,34 @@ if (hasDatabaseConfiguration() && process.env.AUTH_GOOGLE_ID && process.env.AUTH
   }));
 }
 
-if (hasDatabaseConfiguration() && process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
+if (availability.githubEnabled) {
   configuredProviders.push(GitHub({
+    // Only verified addresses are trusted, which makes email-based linking safe.
+    allowDangerousEmailAccountLinking: true,
+    userinfo: {
+      url: 'https://api.github.com/user',
+      async request({ tokens }: { tokens: { access_token?: string } }) {
+        const headers = { Authorization: `Bearer ${tokens.access_token}`, 'User-Agent': 'KaracterHub' };
+        const profile = await fetch('https://api.github.com/user', { headers }).then(response => response.json());
+        const emailsResponse = await fetch('https://api.github.com/user/emails', { headers });
+        const emails: GitHubEmail[] = emailsResponse.ok ? await emailsResponse.json() : [];
+        const verified = emails.find(entry => entry.primary && entry.verified) ?? emails.find(entry => entry.verified);
+        return { ...profile, email: verified?.email ?? null, email_verified: Boolean(verified) };
+      },
+    },
     profile(profile) {
       return {
         id: String(profile.id),
         name: profile.name ?? profile.login,
         email: profile.email?.toLowerCase() ?? null,
         image: profile.avatar_url,
+        emailVerified: (profile as typeof profile & { email_verified?: boolean }).email_verified ? new Date() : null,
       };
     },
   }));
 }
 
-if (hasDatabaseConfiguration() && process.env.AUTH_RESEND_KEY && process.env.AUTH_EMAIL_FROM) {
+if (availability.emailEnabled) {
   const resendProvider = Resend({
     apiKey: process.env.AUTH_RESEND_KEY,
     from: process.env.AUTH_EMAIL_FROM,
@@ -66,7 +88,7 @@ configuredProviders.push(Credentials({
       ? credentials.identifier.trim().toLowerCase()
       : '';
     const password = typeof credentials.password === 'string' ? credentials.password : '';
-    if (!identifier || !password || identifier.length > 254 || password.length > 72) return null;
+    if (!identifier || !password || identifier.length > 254 || Buffer.byteLength(password, 'utf8') > 72) return null;
 
     const address = getClientAddress(request.headers);
     const limit = await consumeRateLimit(`credentials:${address}:${identifier}`, 8, 15 * 60 * 1000);
@@ -96,20 +118,36 @@ configuredProviders.push(Credentials({
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: hasDatabaseConfiguration() ? createNetlifyAuthAdapter() : undefined,
   session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 30 },
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
-  trustHost: process.env.AUTH_TRUST_HOST === 'true',
+  secret: getAuthSecret(),
+  trustHost: shouldTrustHost(),
   providers: configuredProviders,
   pages: { signIn: '/login', error: '/login', verifyRequest: '/verify-email' },
+  events: {
+    async linkAccount({ user, profile }) {
+      // A verified OAuth email proves ownership. Drop any password set by whoever
+      // registered the address before it was verified, so it can't be used later.
+      if (!user.id || !profile || !('emailVerified' in profile) || !profile.emailVerified) return;
+      await getDatabase()
+        .update(users)
+        .set({ emailVerified: new Date(), passwordHash: null })
+        .where(and(eq(users.id, user.id), isNull(users.emailVerified)));
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
-        const browserSession = await getBrowserSession();
-        if (browserSession) {
-          await getDatabase()
-            .update(projects)
-            .set({ userId: user.id, sessionId: null })
-            .where(and(eq(projects.sessionId, browserSession.id), isNull(projects.userId)));
+        try {
+          const browserSession = await getBrowserSession();
+          if (browserSession) {
+            await getDatabase()
+              .update(projects)
+              .set({ userId: user.id, sessionId: null })
+              .where(and(eq(projects.sessionId, browserSession.id), isNull(projects.userId)));
+          }
+        } catch (error) {
+          // Claiming guest projects is best-effort and must never block sign-in.
+          console.error('Failed to claim guest projects on sign-in', error);
         }
       }
       return token;
