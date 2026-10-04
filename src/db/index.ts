@@ -1,35 +1,27 @@
-import { getDatabase as getNetlifyConnection } from '@netlify/database';
-import { drizzle } from 'drizzle-orm/netlify-db';
 import { Pool } from '@neondatabase/serverless';
-import { drizzle as drizzleNeon } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
+import { drizzle as drizzleNeon } from 'drizzle-orm/node-postgres';
 import { decryptSecret } from '@/lib/crypto';
 import { assertNeonConnectionString } from '@/lib/neon/connection';
 import * as schema from '@/lib/db/schema';
 import { byoDatabases, projects } from '@/lib/db/schema';
 
-let connection: ReturnType<typeof getNetlifyConnection> | undefined;
-let database: ReturnType<typeof createDatabase> | undefined;
+let pool: Pool | undefined;
+let database: ReturnType<typeof createNeonDatabase> | undefined;
 
-function getConnection() {
-  connection ??= getNetlifyConnection();
-  return connection;
+function getPool(connectionString = process.env.DATABASE_URL) {
+  if (!connectionString) throw new Error('DATABASE_URL is required to connect to Neon.');
+  return new Pool({
+    connectionString: assertNeonConnectionString(connectionString),
+    ssl: true,
+    max: 5,
+    connectionTimeoutMillis: 8_000,
+    idleTimeoutMillis: 10_000,
+  });
 }
 
-function createDatabase() {
-  const client = getConnection();
-  const drizzleClient = drizzle({ client, schema });
-  return Object.assign(drizzleClient, { pool: client.pool });
-}
-
-type NetlifyDatabase = ReturnType<typeof createDatabase>;
-type NeonDatabase = ReturnType<typeof createNeonDatabase>;
-type ProjectDatabaseContext =
-  | { provider: 'netlify'; database: NetlifyDatabase; pool: NetlifyDatabase['pool'] }
-  | { provider: 'neon'; database: NeonDatabase; pool: Pool };
-
-function createNeonDatabase(pool: Pool) {
-  return drizzleNeon({ client: pool, schema });
+function createNeonDatabase(client: Pool) {
+  return drizzleNeon({ client, schema });
 }
 
 export class ProjectDatabaseReconnectRequiredError extends Error {
@@ -39,42 +31,53 @@ export class ProjectDatabaseReconnectRequiredError extends Error {
   }
 }
 
+function getPrimaryPool() {
+  pool ??= getPool();
+  return pool;
+}
+
 export function getDatabase() {
-  database ??= createDatabase();
+  database ??= createNeonDatabase(getPrimaryPool());
   return database;
 }
 
 export function hasDatabaseConfiguration() {
-  return Boolean(process.env.NETLIFY_DB_URL || process.env.NETLIFY || process.env.NETLIFY_LOCAL);
+  return Boolean(process.env.DATABASE_URL);
 }
 
+type ProjectDatabaseContext = {
+  provider: 'neon';
+  database: ReturnType<typeof createNeonDatabase>;
+  pool: Pool;
+};
+
 /**
- * Run a query against a project's selected database. BYO credentials are
- * decrypted only for this callback and its Neon pool is always closed after it.
+ * Run a query against a project's configured Neon database. If it has no
+ * project-specific credentials, use the application's shared Neon database.
  */
 export async function withProjectDatabase<T>(
   projectId: string,
   userId: string,
   operation: (context: ProjectDatabaseContext) => Promise<T>,
 ): Promise<T> {
-  const netlifyDatabase = getDatabase();
-  const [project] = await netlifyDatabase
+  const primaryDatabase = getDatabase();
+  const primaryPool = getPrimaryPool();
+  const [project] = await primaryDatabase
     .select({ id: projects.id })
     .from(projects)
     .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
     .limit(1);
   if (!project) throw new Error('Project not found.');
 
-  const [configuration] = await netlifyDatabase
-    .select({ provider: byoDatabases.provider, connectionStringEncrypted: byoDatabases.connectionStringEncrypted })
+  const [configuration] = await primaryDatabase
+    .select({ connectionStringEncrypted: byoDatabases.connectionStringEncrypted })
     .from(byoDatabases)
     .where(eq(byoDatabases.projectId, projectId))
     .limit(1);
 
-  if (configuration?.provider !== 'neon') {
-    return operation({ provider: 'netlify', database: netlifyDatabase, pool: netlifyDatabase.pool });
+  if (!configuration?.connectionStringEncrypted) {
+    return operation({ provider: 'neon', database: primaryDatabase, pool: primaryPool });
   }
-  if (!configuration.connectionStringEncrypted) throw new ProjectDatabaseReconnectRequiredError();
 
   let connectionString: string;
   try {
@@ -82,23 +85,11 @@ export async function withProjectDatabase<T>(
   } catch {
     throw new ProjectDatabaseReconnectRequiredError();
   }
-  const pool = new Pool({
-    connectionString,
-    ssl: true,
-    max: 1,
-    connectionTimeoutMillis: 8_000,
-    idleTimeoutMillis: 1_000,
-  });
+  const projectPool = getPool(connectionString);
 
   try {
-    return await operation({ provider: 'neon', database: createNeonDatabase(pool), pool });
+    return await operation({ provider: 'neon', database: createNeonDatabase(projectPool), pool: projectPool });
   } finally {
-    await pool.end();
+    await projectPool.end();
   }
 }
-
-/**
- * Use `getDatabase().pool.connect()` for multi-statement transactions. The
- * `@netlify/database` `sql` helper may use a different pooled connection for
- * each call and cannot guarantee that BEGIN/COMMIT share a connection.
- */

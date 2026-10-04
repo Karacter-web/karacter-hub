@@ -4,17 +4,11 @@ export function getAuthSecret() {
   return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
 }
 
-/**
- * Netlify terminates TLS and forwards the original host, so the incoming host
- * is trustworthy there. AUTH_TRUST_HOST still overrides this when set.
- */
 export function shouldTrustHost() {
   if (process.env.AUTH_TRUST_HOST) return process.env.AUTH_TRUST_HOST === 'true';
   return Boolean(
     process.env.AUTH_URL
-    || process.env.NETLIFY
-    || process.env.NETLIFY_LOCAL
-    || process.env.SITE_ID
+    || process.env.VERCEL
     || process.env.NODE_ENV !== 'production',
   );
 }

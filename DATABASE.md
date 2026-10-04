@@ -1,61 +1,67 @@
-# Netlify Database and Optional Neon
+# Neon Database
 
-KaracterHub uses `@netlify/database` and Drizzle's native Netlify adapter by
-default. Netlify resolves the managed connection automatically; the app does
-not need a database URL. Installing the package provisions the database on the
-first deploy, and Netlify applies committed migration files during deployment.
-Netlify Database is available on credit-based plans.
+KaracterHub uses Neon PostgreSQL as its application database. Set
+`DATABASE_URL` to the pooled Neon connection string for runtime queries and
+`DATABASE_URL_UNPOOLED` to the direct connection string for Drizzle tooling.
+Both values must remain server-side.
 
-## Local Development
+## Local Development and Deployment
 
-Run `npm run dev` (`netlify dev`) after authenticating and linking the project
-with the Netlify CLI. Local database migrations are applied by
-`npm run db:migrate:local`, which targets the Netlify CLI's local database.
-Generate reviewed migration files with `npm run db:generate`; files are written
-to `netlify/database/migrations/`.
+1. Create a Neon project and copy its pooled and direct connection strings.
+2. Add them to `.env.local` as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.
+3. Initialize the schema with `npm run db:generate`, review the generated SQL,
+   and apply it with `npm run db:migrate`.
+4. Add both URLs to the Vercel project's environment variables for the
+   appropriate deploy environments.
 
-Never run `drizzle-kit push`. Never run `drizzle-kit migrate` against a hosted
-Netlify database. Hosted migrations are applied only through the Netlify deploy
-lifecycle.
+`vercel.json` configures the Next.js framework. Vercel builds the app with
+`npm run build`; local development uses `npm run dev`.
 
 ## Schema and Migrations
 
-The product schema is in `src/lib/db/schema.ts`. It contains:
+The application schema is in `src/lib/db/schema.ts`. It contains:
 
-- Auth.js `users`, `accounts`, `sessions`, and `verification_tokens` tables.
-- `auth_rate_limits` for shared throttling across serverless instances.
-- `browser_sessions` for hashed guest-session tokens.
-- `projects` for generated files, account ownership, and legacy guest ownership.
-- `byo_databases` for a per-project provider selection and encrypted optional
-  Neon credentials. The default Netlify path stores no connection string.
+- Auth.js users, accounts, sessions, and verification tokens.
+- Shared authentication and API rate limits.
+- Hashed browser sessions and saved projects.
+- Encrypted credentials for optional project-specific Neon databases.
 
-For schema changes, update the TypeScript schema and generate/review a migration:
+For schema changes, update the schema, generate and review a migration, then
+apply it to the intended Neon database:
 
 ```sh
 npm run db:generate
-npm run db:migrate:local
+npm run db:migrate
 ```
 
-The second command applies to the local database only. Commit generated SQL and
-snapshots; Netlify applies these during deploy. Use `npm run db:studio` for local
-inspection. Drizzle config uses `NETLIFY_DB_URL` when supplied by Netlify CLI.
+Use `DATABASE_URL_UNPOOLED` for migration operations. Review generated SQL and
+back up production data before applying schema changes. `npm run db:smoke`
+checks connectivity and basic database access.
 
-## Optional BYO Neon
+## Optional Project-Specific Neon Databases
 
-The project owner can open `/app/settings/database`, select a saved project, and
-choose **Bring your own Neon**. Paste a Neon PostgreSQL connection string and,
-optionally, a Neon API key. The server validates the Neon host and tests the
-connection before storing either credential encrypted with AES-256-GCM.
+An owner can open `/app/settings/database`, select a saved project, and connect
+a separate Neon database. The server validates the Neon host and tests the
+connection before storing credentials encrypted with AES-256-GCM.
 
 Set `CREDENTIAL_ENCRYPTION_KEY` to a base64-encoded random 32-byte key generated
-with `openssl rand -base64 32` in local and Netlify server-side environment
-settings. Do not prefix it with `NEXT_PUBLIC_`. Connection strings and API keys
-are never returned to the browser or logged. Each BYO request verifies project
-ownership, decrypts only for the request lifetime, and closes its Neon pool.
+with `openssl rand -base64 32` in local and Vercel server-side environment
+settings. Never prefix it with `NEXT_PUBLIC_`. Connection strings and API keys
+are never returned to the browser or logged. Each request verifies project
+ownership, decrypts credentials only for the request lifetime, and closes the
+per-project Neon pool.
 
-Disconnecting removes KaracterHub's encrypted connection record and returns
-that project to Netlify Database; it does not alter or delete the external Neon
-project. Netlify never automatically applies schema migrations to BYO Neon. The
-owner must review the SQL preview and explicitly confirm **Push schema**. That
-route runs pending migrations in one external transaction, uses a per-project
-advisory lock, and records hashes in the external `schema_migrations` ledger.
+Disconnecting removes only KaracterHub's encrypted connection record. That
+project then uses the application's Neon database; the separate Neon project is
+not changed or deleted. Project schema changes are shown for review and require
+explicit confirmation before being applied in one transaction. A per-project
+advisory lock and the `schema_migrations` hash ledger prevent duplicate or
+modified migrations from being applied silently.
+
+## Moving an Existing Database
+
+Changing the deployment configuration does not copy data from an existing
+database. Create the schema in Neon from the current migrations, then export
+data-only from the source PostgreSQL database and import it to Neon. Back up the
+source first, validate imported users and projects, and only then update
+Vercel's `DATABASE_URL` values.

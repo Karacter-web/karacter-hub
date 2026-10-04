@@ -33,7 +33,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
     if (!owned) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
 
     const preview = await withProjectDatabase(projectId, session.user.id, async context => {
-      if (context.provider !== 'neon') return { provider: 'netlify' as const, migrations: [] };
       const client = await context.pool.connect();
       try {
         let history: Array<{ name: string; hash: string }> = [];
@@ -85,7 +84,6 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (!owned.migrations.length) return NextResponse.json({ applied: [], skipped: [] });
 
     const result = await withProjectDatabase(projectId, session.user.id, async context => {
-      if (context.provider !== 'neon') throw new Error('Netlify databases use deploy-managed migrations.');
       const client = await context.pool.connect();
       try {
         return await applyProjectMigrations(client, projectId, owned.migrations);
@@ -104,9 +102,6 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
     if (isReconnectError(error) || error instanceof ProjectDatabaseReconnectRequiredError) {
       return NextResponse.json({ error: 'reconnect_required' }, { status: 409 });
-    }
-    if (error instanceof Error && error.message.includes('deploy-managed')) {
-      return NextResponse.json({ error: 'Netlify Database migrations are applied during deploy.' }, { status: 409 });
     }
     return NextResponse.json({ error: 'migration_failed', message: 'The external database could not be reached.' }, { status: 503 });
   }

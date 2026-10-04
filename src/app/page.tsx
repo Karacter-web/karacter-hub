@@ -350,7 +350,7 @@ export default function HomePage() {
           ))}
           {libraryState === 'unavailable' && (
             <p className="mx-1 mt-2 rounded-lg border border-line bg-surface-soft p-3 text-[11px] leading-5 text-muted">
-              Enable Netlify Database to save and reopen projects. A custom Neon URL is optional.
+              Configure the Neon database to save and reopen projects. A separate project database is optional.
             </p>
           )}
         </nav>

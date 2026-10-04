@@ -4,8 +4,7 @@ import { getDatabase } from '@/lib/db';
 import { authRateLimits } from '@/lib/db/schema';
 
 export function getClientAddress(headers: Headers) {
-  return headers.get('x-nf-client-connection-ip')
-    || headers.get('x-real-ip')
+  return headers.get('x-real-ip')
     || headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || 'unknown';
 }

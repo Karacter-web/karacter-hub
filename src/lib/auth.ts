@@ -8,7 +8,7 @@ import Resend from 'next-auth/providers/resend';
 import { getDatabase, hasDatabaseConfiguration } from '@/lib/db';
 import { getBrowserSession } from '@/lib/db/browser-session';
 import { consumeRateLimit, getClientAddress } from '@/lib/auth/rate-limit';
-import { createNetlifyAuthAdapter } from '@/lib/auth/adapter';
+import { createAuthAdapter } from '@/lib/auth/adapter';
 import { getAuthAvailability, getAuthSecret, shouldTrustHost } from '@/lib/auth/config';
 import { projects, users } from '@/lib/db/schema';
 
@@ -116,7 +116,7 @@ configuredProviders.push(Credentials({
 }));
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: hasDatabaseConfiguration() ? createNetlifyAuthAdapter() : undefined,
+  adapter: hasDatabaseConfiguration() ? createAuthAdapter() : undefined,
   session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 30 },
   secret: getAuthSecret(),
   trustHost: shouldTrustHost(),

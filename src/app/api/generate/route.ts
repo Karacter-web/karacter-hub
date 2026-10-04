@@ -4,6 +4,8 @@ import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { streamAIResponse } from '@/lib/ai/response';
 import { redactSecretValues } from '@/lib/ai/redact';
 
+export const maxDuration = 60;
+
 // ============================================================================
 // System Prompt
 // ============================================================================

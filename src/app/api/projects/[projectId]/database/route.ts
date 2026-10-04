@@ -38,7 +38,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .limit(1);
 
     return NextResponse.json({
-      provider: database?.provider ?? 'netlify',
+      provider: database?.provider ?? 'neon',
       ...(database?.neonProjectId ? { neonProjectId: database.neonProjectId } : {}),
       hasConnectionString: Boolean(database?.connectionStringEncrypted),
       hasApiKey: Boolean(database?.neonApiKeyEncrypted),
@@ -142,7 +142,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     if (!hasDatabaseConfiguration()) return NextResponse.json({ error: 'Database is unavailable.' }, { status: 503 });
 
     await getDatabase().delete(byoDatabases).where(eq(byoDatabases.projectId, projectId));
-    return NextResponse.json({ provider: 'netlify', hasConnectionString: false, hasApiKey: false });
+    return NextResponse.json({ provider: 'neon', hasConnectionString: false, hasApiKey: false });
   } catch {
     return NextResponse.json({ error: 'Database could not be disconnected.' }, { status: 503 });
   }

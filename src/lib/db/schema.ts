@@ -107,7 +107,7 @@ export const projects = pgTable(
   ],
 );
 
-export const databaseProvider = pgEnum('database_provider', ['netlify', 'neon']);
+export const databaseProvider = pgEnum('database_provider', ['neon']);
 
 export const byoDatabases = pgTable(
   'byo_databases',
@@ -116,7 +116,7 @@ export const byoDatabases = pgTable(
     projectId: uuid('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
-    provider: databaseProvider('provider').notNull().default('netlify'),
+    provider: databaseProvider('provider').notNull().default('neon'),
     connectionStringEncrypted: text('connection_string_encrypted'),
     neonApiKeyEncrypted: text('neon_api_key_encrypted'),
     neonProjectId: text('neon_project_id'),

@@ -22,7 +22,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   try {
     const migrations = await withProjectDatabase(projectId, session.user.id, async context => {
-      if (context.provider !== 'neon') return [];
       const client = await context.pool.connect();
       try {
         return await getProjectMigrationHistory(client, projectId);

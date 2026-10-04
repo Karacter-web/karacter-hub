@@ -37,8 +37,8 @@ test('explicit user credentials select BYO for the matching provider only', () =
     model: 'mistral-large',
     source: 'byo',
   });
-  assert.equal(resolveAIProvider('gpt-4.1', { OPENAI_API_KEY: 'local-key', NETLIFY: 'true' }).source, 'byo');
-  assert.equal(resolveAIProvider('gpt-4.1', { OPENAI_API_KEY: 'local-key', NETLIFY: 'true', AI_PROVIDER_MODE: 'byo' }).source, 'byo');
+  assert.equal(resolveAIProvider('gpt-4.1', { OPENAI_API_KEY: 'local-key', VERCEL: '1' }).source, 'byo');
+  assert.equal(resolveAIProvider('gpt-4.1', { OPENAI_API_KEY: 'local-key', AI_PROVIDER_MODE: 'byo' }).source, 'byo');
 });
 
 test('mocked OpenAI-compatible client streams text without exposing provider keys', async () => {
@@ -70,6 +70,45 @@ test('mocked OpenAI-compatible client streams text without exposing provider key
   assert.equal(received, 'first second');
   assert.equal(requests[0].model, 'gpt-4.1');
   assert.equal(JSON.stringify(requests[0]).includes('must-not-enter-prompt'), false);
+});
+
+test('Vercel AI Gateway uses its key and provider-qualified model identifier', async () => {
+  const requests: Array<Record<string, unknown>> = [];
+  const clientOptions: Array<{ apiKey?: string; baseURL?: string } | undefined> = [];
+  const clients: AIClientFactories = {
+    openai: options => {
+      clientOptions.push(options);
+      return {
+        chat: {
+          completions: {
+            async create(request) {
+              requests.push(request);
+              return (async function* () {
+                yield { choices: [{ delta: { content: 'gateway response' } }] };
+              })();
+            },
+          },
+        },
+      };
+    },
+    anthropic: () => { throw new Error('unexpected SDK'); },
+    google: () => { throw new Error('unexpected SDK'); },
+  };
+  const chunks: string[] = [];
+  for await (const chunk of streamAIText({
+    model: 'claude-sonnet-4',
+    system: 'system',
+    prompt: 'prompt',
+  }, { env: { AI_GATEWAY_API_KEY: 'gateway-secret' }, clients })) {
+    chunks.push(chunk);
+  }
+
+  assert.deepEqual(chunks, ['gateway response']);
+  assert.deepEqual(clientOptions[0], {
+    apiKey: 'gateway-secret',
+    baseURL: 'https://ai-gateway.vercel.sh/v1',
+  });
+  assert.equal(requests[0].model, 'anthropic/claude-sonnet-4');
 });
 
 test('mocked Anthropic and Gemini clients emit normalized text chunks', async () => {

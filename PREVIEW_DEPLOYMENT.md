@@ -1,25 +1,21 @@
-# Preview Hosting and Custom Domains
+# Preview Hosting and Deployment
 
 ## Current Preview Model
 
-Karacter currently runs generated projects in `@webcontainer/api` inside the
-user's browser. `PreviewPanel` mounts the generated file tree, starts its dev
-command, and listens for WebContainer's `server-ready` event. The event provides
-the preview URL; the iframe and the "Open in new tab" link must use that URL.
+Karacter runs generated projects in `@webcontainer/api` inside the user's
+browser. `PreviewPanel` mounts the generated file tree, starts its dev command,
+and listens for WebContainer's `server-ready` event. The iframe and "Open in
+new tab" link use the URL provided by that event.
 
-The preview is not a server listening on Karacter's `localhost` or Netlify
-deployment. Locally, Karacter itself is opened at `http://localhost:3000`; the
-generated application is served from the URL WebContainer provides. On Netlify,
-Karacter is opened at its Netlify site URL and the generated application still
-uses the URL WebContainer provides.
+The preview is not a server listening on Karacter's origin. Locally, Karacter
+itself is opened at `http://localhost:3000`; on Vercel it is opened at the
+deployed project URL. In both cases, the generated application is served from
+the URL provided by WebContainer.
 
-Netlify's Next.js Runtime deploys Karacter's Next.js routes and functions. It
-does not provision a new Netlify deployment hostname for every user session,
-nor can it map a hostname to a WebContainer process that exists only in a
-visitor's browser. A name such as
-`<preview-id>--karacter-brain.netlify.app` is not created by the Netlify plugin.
-Netlify deploy-preview and branch-deploy names identify deployed builds, not
-per-user WebContainer sessions.
+Deploying Karacter to Vercel does not create a new deployment hostname for each
+user session or map a hostname to a WebContainer process in a visitor's browser.
+Vercel preview and branch deployments identify deployed builds, not per-user
+WebContainer sessions.
 
 ## WebContainer Requirements
 
@@ -44,10 +40,9 @@ preview URL.
 
 ## Future Custom Preview Domain
 
-If previews must use Karacter-controlled hostnames, keep the Netlify app as the
-control plane and introduce a separate preview gateway and runtime service.
-The gateway, not the Netlify Next.js plugin, must own wildcard hostname routing
-and map each incoming request to a live preview runtime.
+If previews need Karacter-controlled hostnames, introduce a dedicated preview
+gateway and runtime service. The gateway, not the Next.js deployment, must own
+wildcard hostname routing and map each request to a live preview runtime.
 
 Recommended shape:
 
@@ -60,8 +55,8 @@ Gateway:            validates session -> routes HTTP/WebSocket -> isolated runti
 
 Implementation steps:
 
-1. Create a dedicated preview domain and wildcard DNS record, such as
-   `*.preview.example`, pointed at a gateway that supports wildcard TLS.
+1. Create a dedicated preview domain and wildcard DNS record pointed at a
+   gateway that supports wildcard TLS.
 2. Run generated projects in server-hosted, disposable containers. Register
    each runtime with the gateway and route requests by the requested hostname.
    Support WebSocket upgrades and the ports/protocols required by dev servers.
@@ -73,33 +68,23 @@ Implementation steps:
    Karacter cookies or server credentials to generated projects. Use host-only
    cookies, restrictive frame policy, per-runtime resource limits, network
    egress controls, and lifecycle timeouts.
-5. Add a preview URL provider boundary in the app: the WebContainer provider
-   returns the `server-ready` URL, while a future hosted-runtime provider
-   returns the gateway URL. Do not couple the UI to Netlify's deployment host.
-6. For custom domains, configure the same gateway and wildcard certificate for
-   the preview subdomain under the new domain; the Karacter application domain
-   can change independently.
-
-Netlify remains suitable for the Karacter Next.js control plane. A Netlify
-Function or Edge Function can handle short-lived routing/authentication work,
-but is not a substitute for the long-lived, isolated runtime and hostname
-router needed to serve arbitrary user applications. If the product keeps
-browser-based WebContainers, use their returned preview URL rather than trying
-to rename it to a Netlify hostname.
+5. Keep the preview URL provider boundary independent of the deployment host.
+   The WebContainer provider returns its `server-ready` URL; a future hosted
+   runtime provider can return a gateway URL.
+6. Configure wildcard DNS and TLS for the preview subdomain independently of
+   the Karacter application domain.
 
 ## Deployment and Security Checks
 
-- `netlify.toml` registers `@netlify/plugin-nextjs` and pins the build runtime
-   to Node 22. The plugin manages its generated publish output; do not hard-code
-  a publish directory that bypasses its output preparation.
-- Set `MISTRAL_API_KEY`, `GITHUB_CLIENT_SECRET`, and other private credentials
-  in Netlify's server-side environment settings. Never expose secrets through
-  `NEXT_PUBLIC_*` variables or pass them into generated runtimes.
-- The local Next.js production build has been validated. A linked-site
-   deployment, custom domain, OAuth callback URLs, production secrets, and the
-   selected Node 22 runtime still need verification in Netlify.
-- The project now targets Node 22 and Next.js 16.3.8. Re-run deployment checks
-   when changing the Netlify runtime plugin or framework version.
-- `npm audit --omit=dev` reports zero production dependency vulnerabilities at
-   the time of this update. Development dependencies still have advisories and
-   should be reviewed as part of routine dependency maintenance.
+- `vercel.json` declares the Next.js framework; Vercel's Next.js integration
+  builds and deploys the App Router application.
+- Generation and refactoring handlers allow up to 60 seconds for streamed AI
+  responses; the Vercel plan's function duration limit still applies.
+- Configure `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AUTH_SECRET`,
+  `AI_GATEWAY_API_KEY` (or provider keys), OAuth secrets, and `AUTH_RESEND_KEY`
+  as server-side Vercel environment variables. Never expose them with a
+  `NEXT_PUBLIC_` prefix.
+- Add the deployed HTTPS origin and matching `/api/auth/callback/google` and
+  `/api/auth/callback/github` URLs to enabled OAuth applications.
+- Verify the configured Node.js 22 runtime and production environment
+  variables in the Vercel deployment settings.

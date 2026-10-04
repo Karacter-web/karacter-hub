@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { getDatabase } from '@/db';
 import { accounts, sessions, users, verificationTokens } from '@/lib/db/schema';
 
-export function createNetlifyAuthAdapter(): Adapter {
+export function createAuthAdapter(): Adapter {
   return {
     async createUser(user) {
       const [created] = await getDatabase()

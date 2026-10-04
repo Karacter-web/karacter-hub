@@ -81,13 +81,6 @@ const providerKeys: Record<AIProviderName, string[]> = {
   mistral: ['MISTRAL_API_KEY'],
 };
 
-const gatewayBaseUrls: Partial<Record<AIProviderName, string>> = {
-  openai: 'OPENAI_BASE_URL',
-  anthropic: 'ANTHROPIC_BASE_URL',
-  google: 'GOOGLE_GEMINI_BASE_URL',
-  openrouter: 'OPENROUTER_BASE_URL',
-};
-
 function chooseModel(model: string | undefined, env: Environment) {
   const selected = model?.trim() || env.NEXT_PUBLIC_AI_MODEL?.trim() || 'mistral-large';
   return selected.slice(0, 160);
@@ -132,13 +125,11 @@ export function resolveAIProvider(model?: string, env: Environment = process.env
 
   const keyAvailable = providerKeys[provider].some(key => Boolean(env[key]));
   const explicitMode = env.AI_PROVIDER_MODE?.toLowerCase();
-  const runningOnNetlify = env.NETLIFY === 'true' || env.NETLIFY === '1';
-  const gatewayRuntimeAvailable = runningOnNetlify && Boolean(env[gatewayBaseUrls[provider] ?? '']);
   const source: AIProviderSource = provider === 'mistral'
     ? 'byo'
     : explicitMode === 'byo'
       ? 'byo'
-      : explicitMode === 'gateway' || gatewayRuntimeAvailable
+      : explicitMode === 'gateway' || Boolean(env.AI_GATEWAY_API_KEY)
         ? 'gateway'
         : keyAvailable
           ? 'byo'
@@ -157,6 +148,19 @@ function requireKey(selection: AIProviderSelection, env: Environment) {
   return key;
 }
 
+function requireGatewayKey(env: Environment) {
+  const key = env.AI_GATEWAY_API_KEY;
+  if (!key) throw new Error('AI_GATEWAY_API_KEY is required to use Vercel AI Gateway.');
+  return key;
+}
+
+function gatewayModel(selection: AIProviderSelection) {
+  if (selection.provider === 'openrouter') {
+    return selection.model.replace(/^mistralai\//, 'mistral/');
+  }
+  return `${selection.provider}/${selection.model}`;
+}
+
 export async function* streamAIText(
   input: AITextInput,
   options: { env?: Environment; clients?: AIClientFactories } = {},
@@ -169,10 +173,29 @@ export async function* streamAIText(
     max_tokens: input.maxOutputTokens ?? 16_000,
   };
 
+  if (selection.source === 'gateway') {
+    const client = clients.openai({
+      apiKey: requireGatewayKey(env),
+      baseURL: 'https://ai-gateway.vercel.sh/v1',
+    });
+    const stream = await client.chat.completions.create({
+      model: gatewayModel(selection),
+      messages: [{ role: 'system', content: input.system }, { role: 'user', content: input.prompt }],
+      ...modelOptions,
+      stream: true,
+    });
+    for await (const chunk of stream) {
+      const content = chunk.choices?.[0]?.delta?.content;
+      if (typeof content === 'string') yield content;
+      else if (Array.isArray(content)) {
+        for (const part of content) if (part.text) yield part.text;
+      }
+    }
+    return;
+  }
+
   if (selection.provider === 'openai') {
-    const client = selection.source === 'gateway'
-      ? clients.openai()
-      : clients.openai({ apiKey: requireKey(selection, env), baseURL: env.OPENAI_BASE_URL });
+    const client = clients.openai({ apiKey: requireKey(selection, env), baseURL: env.OPENAI_BASE_URL });
     const stream = await client.chat.completions.create({
       model: selection.model,
       messages: [{ role: 'system', content: input.system }, { role: 'user', content: input.prompt }],
@@ -190,9 +213,7 @@ export async function* streamAIText(
   }
 
   if (selection.provider === 'anthropic') {
-    const client = selection.source === 'gateway'
-      ? clients.anthropic()
-      : clients.anthropic({ apiKey: requireKey(selection, env), baseURL: env.ANTHROPIC_BASE_URL });
+    const client = clients.anthropic({ apiKey: requireKey(selection, env), baseURL: env.ANTHROPIC_BASE_URL });
     const stream = await client.messages.create({
       model: selection.model,
       system: input.system,
@@ -210,9 +231,7 @@ export async function* streamAIText(
   }
 
   if (selection.provider === 'google') {
-    const client = selection.source === 'gateway'
-        ? clients.google()
-      : clients.google({ apiKey: requireKey(selection, env), baseURL: env.GOOGLE_GEMINI_BASE_URL });
+    const client = clients.google({ apiKey: requireKey(selection, env), baseURL: env.GOOGLE_GEMINI_BASE_URL });
     const stream = await client.models.generateContentStream({
       model: selection.model,
       contents: input.prompt,
@@ -244,10 +263,14 @@ export async function* streamAIText(
     return;
   }
 
-  const client = clients.openai({
-    apiKey: requireKey(selection, env),
-    baseURL: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  });
+  const client = selection.source === 'gateway'
+    ? clients.openai({
+      baseURL: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+    })
+    : clients.openai({
+      apiKey: requireKey(selection, env),
+      baseURL: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+    });
   const stream = await client.chat.completions.create({
     model: selection.model,
     messages: [{ role: 'system', content: input.system }, { role: 'user', content: input.prompt }],
@@ -264,7 +287,6 @@ export async function consumeAIText(input: AITextInput, options: { env?: Environ
   let text = '';
   for await (const chunk of streamAIText(input, options)) {
     text += chunk;
-    break;
   }
   return { text, ...resolveAIProvider(input.model, options.env ?? process.env) };
 }

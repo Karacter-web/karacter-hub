@@ -18,7 +18,7 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
 - **One-Click Deploy**: Push your entire project to GitHub
 - **Persistent Projects**: Save projects to your account and reopen them across devices
 - **Account Access**: Sign in with a username/email and password, Google, or GitHub
-- **Managed AI**: Netlify AI Gateway routes to OpenAI, Anthropic, Gemini, and OpenRouter by default
+- **Managed AI**: Vercel AI Gateway routes requests to supported model providers
 
 ## Quick Start
 
@@ -26,8 +26,8 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
 
 - Node.js 22.x
 - npm or yarn
-- A Netlify account on a credit-based plan
-- Netlify CLI authentication for local development (`netlify login`)
+- A Vercel account for deployment
+- A Neon project for PostgreSQL
 
 ### Installation
 
@@ -48,22 +48,21 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
    ```
    
     Then edit `.env.local` and generate the Auth.js secret. The encryption key
-    is only needed if you connect a BYO Neon database:
+    is only needed if you connect a separate project Neon database:
    ```
     AUTH_SECRET=<output of openssl rand -base64 32>
     CREDENTIAL_ENCRYPTION_KEY=<output of openssl rand -base64 32>
    ```
 
-4. Link the repo to your Netlify site (`netlify link`) and run `npm run dev`.
-   The script uses `netlify dev`; Netlify Database resolves through the CLI.
-   No `DATABASE_URL` is needed for the default path.
+4. Create a Neon project and set `DATABASE_URL` to its pooled connection string
+   and `DATABASE_URL_UNPOOLED` to its direct connection string in `.env.local`.
+   Initialize its schema with `npm run db:generate` followed by
+   `npm run db:migrate`.
 
-5. Netlify Database is available on credit-based plans. Installing
-    `@netlify/database` provisions the managed database on the first deploy;
-    Netlify applies committed migrations during that deploy. For local-only
-    migration testing, use `npm run db:migrate:local`. Generate reviewed files
-    with `npm run db:generate`; never run `drizzle-kit migrate` against a hosted
-    Netlify database.
+5. Set up authentication and AI keys as described below, then run `npm run dev`.
+   To deploy, import the repository into Vercel and add the same server-side
+   environment variables in the Vercel project settings. Add your Neon URLs to
+   both local and Vercel environments.
 
 6. Configure email verification and sign-in links:
    - In Resend, verify a sending domain and create an API key with email-send
@@ -75,50 +74,42 @@ KaracterHub is an AI-powered workspace that transforms natural language descript
 
 7. Configure optional OAuth providers:
    - **Google:** Create a Web OAuth client in Google Cloud Console. Add
-     `http://localhost:8888` as an authorized JavaScript origin and
-     `http://localhost:8888/api/auth/callback/google` as an authorized redirect
+     `http://localhost:3000` as an authorized JavaScript origin and
+     `http://localhost:3000/api/auth/callback/google` as an authorized redirect
      URI. Set the client ID and secret as `AUTH_GOOGLE_ID` and
      `AUTH_GOOGLE_SECRET`.
    - **GitHub identity:** Create an OAuth App in GitHub Developer settings. Set
      its callback URL to
-      `http://localhost:8888/api/auth/callback/github`. Set its client ID and
+      `http://localhost:3000/api/auth/callback/github`. Set its client ID and
       secret as `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET`.
    - For production, add the matching HTTPS application origin and callback
      URLs using the deployed KaracterHub domain. These OAuth credentials are
      only for signing in; they do not grant GitHub repository permissions.
 
-8. In Netlify, set `AUTH_SECRET`, `CREDENTIAL_ENCRYPTION_KEY` (for BYO Neon),
-   and enabled provider secrets in Site configuration → Environment variables
-   for each deploy context. Set
-   `AUTH_TRUST_HOST=true` only for the trusted Netlify deployment. Keep all
+8. Configure Vercel AI Gateway by setting `AI_GATEWAY_API_KEY`, or set a
+   provider-specific server-side API key and `AI_PROVIDER_MODE=byo`. Keep all
    credentials server-side; never use a `NEXT_PUBLIC_` prefix.
 
-    Do not add `DATABASE_URL` for Netlify Database.
+9. Deploy from Vercel and open the deployed site. Create an account at `/signup`,
+   then use `/app` for the protected workspace.
 
-9. Deploy once to activate Netlify AI Gateway, then open the Netlify site. Create
-    an account at `/signup`, then use `/app` for the protected workspace.
+### Vercel AI Gateway
 
-### Netlify AI Gateway
+AI requests run only from authenticated server API routes. Set
+`AI_GATEWAY_API_KEY` in Vercel project settings to use the Vercel AI Gateway.
+For direct provider access instead, set a provider key and `AI_PROVIDER_MODE=byo`.
+Supported direct providers are OpenAI, Anthropic, Gemini, OpenRouter, and Mistral.
 
-AI requests run only from authenticated server API routes; static generation and
-build scripts never call the Gateway. It requires at least one production deploy
-to activate, is gated to credit-based plans, supports up to 200,000 input tokens,
-and enforces per-team per-minute rate limits. Gateway credentials are injected at
-runtime, so users do not need provider API keys. To opt out for a provider, set
-that provider's server-side key and `AI_PROVIDER_MODE=byo`; supported providers
-are OpenAI, Anthropic, Gemini, and OpenRouter (including Mistral, DeepSeek, xAI,
-Meta, and Qwen models).
+### Neon Database
 
-### Optional Neon Database
-
-The default database remains Netlify-managed. A project owner can choose
-**Bring your own Neon** in `/app/settings/database`, enter a Neon connection
-string, and optionally add a Neon API key for Console API operations. Both
-values are encrypted with AES-256-GCM using `CREDENTIAL_ENCRYPTION_KEY` before
-storage. Netlify-native projects never need Neon credentials. For a Neon
-project, schema SQL is only applied after reviewing the migration preview and
-confirming **Push schema**; disconnecting only removes KaracterHub's encrypted
-connection record and does not delete the external Neon project.
+The application uses Neon as its primary database through `DATABASE_URL`. A
+project owner can optionally select a saved project under
+`/app/settings/database` and connect a separate Neon database for that project.
+Optional project credentials are encrypted with AES-256-GCM using
+`CREDENTIAL_ENCRYPTION_KEY`. Schema SQL for those project databases is applied
+only after review and explicit confirmation. Removing a project's connection
+record switches it back to the application Neon database and does not delete the
+separate Neon project.
 
 ## Usage
 
@@ -212,7 +203,7 @@ See [PREVIEW_DEPLOYMENT.md](PREVIEW_DEPLOYMENT.md) for the current WebContainer
 preview model, deployment requirements, and the recommended path to custom
 preview domains.
 
-See [DATABASE.md](DATABASE.md) for Netlify Database and optional Neon project
+See [DATABASE.md](DATABASE.md) for Neon database
 configuration and migration workflows.
 
 ### Environment Variables
@@ -220,16 +211,19 @@ configuration and migration workflows.
 Create a `.env.local` file in the root directory:
 
 ```env
-# AI model selection is not a credential; the Gateway is the default.
+# AI model selection is not a credential.
 NEXT_PUBLIC_AI_MODEL=mistral-large
 AUTH_SECRET=...
-# CREDENTIAL_ENCRYPTION_KEY is only required for optional BYO Neon.
+DATABASE_URL=...
+DATABASE_URL_UNPOOLED=...
+AI_GATEWAY_API_KEY=...
+# CREDENTIAL_ENCRYPTION_KEY is only required for separate per-project Neon connections.
 
 # GitHub Configuration (for development)
 GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token
 
 # Application
-NEXT_PUBLIC_APP_URL=http://localhost:8888
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### AI Provider Health
@@ -297,15 +291,15 @@ BYO; it never returns keys or connection details.
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
-- **Persistence**: Netlify Database by default; optional encrypted per-project Neon connections
+- **Persistence**: Neon PostgreSQL; optional encrypted per-project Neon connections
 - **Authentication**: Auth.js with verified credentials, Google, and GitHub identity OAuth
 - **Language**: TypeScript 5
 - **State Management**: Zustand
 - **Styling**: Tailwind CSS v4
-- **AI Integration**: Netlify AI Gateway via server-side official provider SDKs
+- **AI Integration**: Vercel AI Gateway or server-side provider SDKs
 - **Code Execution**: @webcontainer/api
 - **GitHub Integration**: @octokit/rest
-- **AI Providers**: OpenAI, Anthropic, Gemini, and OpenRouter through Netlify AI Gateway
+- **AI Providers**: OpenAI, Anthropic, Gemini, OpenRouter, and Mistral
 
 ## Security Considerations
 
@@ -314,7 +308,7 @@ BYO; it never returns keys or connection details.
 3. **GitHub access**: GitHub sign-in does not grant repository permissions. The current push route accepts a token in its request body; a GitHub App with short-lived installation tokens is the planned replacement.
 4. **Rate limiting**: Registration, sign-in, generation, and refactoring use database-backed limits. Configure upstream edge protections as well for production.
 5. **Input validation**: Project-scoped API routes verify ownership before accessing stored files or database settings.
-6. **BYO secrets**: Neon connection strings and API keys are AES-256-GCM encrypted at rest. AI and Auth.js secrets remain in server-side Netlify environment settings.
+6. **Database and AI secrets**: Neon connection strings, AI keys, and Auth.js secrets stay in server-side environment settings; optional per-project Neon credentials are AES-256-GCM encrypted at rest.
 7. **WebContainer**: Runs in a sandboxed iframe with restricted permissions.
 
 ## License
@@ -326,8 +320,8 @@ MIT License - See [LICENSE](LICENSE) for details.
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
 Run `npm run test:ai` and `npm run test:neon` for mocked provider, encryption,
-connection, and migration tests. `npm run db:smoke` exercises the local Netlify
-database when it is available.
+connection, and migration tests. `npm run db:smoke` exercises the configured
+Neon database when available.
 
 ## Acknowledgments
 

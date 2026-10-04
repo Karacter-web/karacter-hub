@@ -15,9 +15,7 @@
 # production
 /build
 
-# netlify
 # deployment output
-.netlify
 .vercel
 deno.lock
 

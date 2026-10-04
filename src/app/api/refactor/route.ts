@@ -6,6 +6,8 @@ import { streamAIResponse } from '@/lib/ai/response';
 import { redactSecretValues } from '@/lib/ai/redact';
 import { getOwnedProject } from '@/lib/projects/ownership';
 
+export const maxDuration = 60;
+
 // ============================================================================
 // Types
 // ============================================================================

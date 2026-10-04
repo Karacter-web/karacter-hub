@@ -14,7 +14,7 @@ interface DatabaseSettingsPanelProps {
 }
 
 interface DatabaseSettings {
-  provider: 'netlify' | 'neon';
+  provider: 'neon';
   neonProjectId?: string;
   hasConnectionString: boolean;
   hasApiKey: boolean;
@@ -129,7 +129,7 @@ export default function DatabaseSettingsPanel({ projects, initialProjectId }: Da
       const response = await fetch(baseUrl, { method: 'DELETE' });
       const result = await readJson<{ error?: string }>(response);
       if (!response.ok) throw new Error(result.error || 'Neon could not be disconnected.');
-      setStatus('Switched back to Netlify Database. Your Neon database was not changed or deleted.');
+      setStatus('Switched back to the application Neon database. Your other Neon database was not changed or deleted.');
       setShowForm(false);
       await loadSettings(projectId);
     } catch (disconnectError) {
@@ -197,7 +197,7 @@ export default function DatabaseSettingsPanel({ projects, initialProjectId }: Da
       <div className="border-b border-line pb-5">
         <p className="font-mono text-[10px] uppercase text-muted">Project infrastructure</p>
         <h1 className="mt-1 text-[25px] font-semibold">Database</h1>
-        <p className="mt-2 max-w-[600px] text-[12px] leading-5 text-ink-soft">Each project uses Netlify Database unless you explicitly connect a Neon database.</p>
+        <p className="mt-2 max-w-[600px] text-[12px] leading-5 text-ink-soft">Projects use the application Neon database by default. You can connect a separate Neon database for an individual project.</p>
       </div>
 
       <label htmlFor="database-project" className="mt-5 block max-w-[430px] text-[11px] font-medium">Project
@@ -220,10 +220,10 @@ export default function DatabaseSettingsPanel({ projects, initialProjectId }: Da
           </span>
         </div>
 
-        {settings?.provider !== 'neon' || showForm ? (
+        {!settings?.hasConnectionString || showForm ? (
           <div className="mt-4">
             {!showForm ? (
-              <button onClick={() => setShowForm(true)} className="h-9 rounded-[7px] border border-line-strong bg-white px-3 text-[11px] font-medium text-ink-soft hover:bg-surface-soft">Bring your own Neon</button>
+              <button onClick={() => setShowForm(true)} className="h-9 rounded-[7px] border border-line-strong bg-white px-3 text-[11px] font-medium text-ink-soft hover:bg-surface-soft">Connect a separate Neon database</button>
             ) : (
               <div className="mt-4 max-w-[580px] space-y-3 border-l-2 border-[#b8caad] pl-4">
                 <label className="block text-[11px] font-medium" htmlFor="neon-connection-string">Neon connection string
@@ -256,7 +256,7 @@ export default function DatabaseSettingsPanel({ projects, initialProjectId }: Da
               {isSaving ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />} Test connection
             </button>
             <button disabled={isSaving} onClick={() => { setShowForm(true); setConnectionString(''); }} className="h-9 rounded-[7px] border border-line-strong bg-white px-3 text-[11px] font-medium text-ink-soft hover:bg-surface-soft">Update credentials</button>
-            <button disabled={isSaving} onClick={() => void disconnectNeon()} className="inline-flex h-9 items-center gap-2 rounded-[7px] px-3 text-[11px] text-muted hover:bg-surface-soft disabled:opacity-50"><RotateCcw size={13} /> Switch to Netlify</button>
+            <button disabled={isSaving} onClick={() => void disconnectNeon()} className="inline-flex h-9 items-center gap-2 rounded-[7px] px-3 text-[11px] text-muted hover:bg-surface-soft disabled:opacity-50"><RotateCcw size={13} /> Use application database</button>
           </div>
         ) : null}
 
